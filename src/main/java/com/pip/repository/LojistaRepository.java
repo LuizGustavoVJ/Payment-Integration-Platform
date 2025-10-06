@@ -24,7 +24,7 @@ public interface LojistaRepository extends JpaRepository<Lojista, UUID> {
     /**
      * Busca lojista por API Key
      */
-    Lojista findByApiKey(String apiKey);
+    Optional<Lojista> findByApiKey(String apiKey);
 
     /**
      * Busca lojista por email

@@ -100,6 +100,9 @@ public class Transacao {
     @Column(name = "valor_capturado")
     private Long valorCapturado;
 
+    @Column(name = "void_reason", length = 500)
+    private String voidReason;
+
     // Construtores
     public Transacao() {
         this.createdAt = ZonedDateTime.now();
@@ -136,6 +139,15 @@ public class Transacao {
 
     public void setValor(Long valor) {
         this.valor = valor;
+    }
+    
+    // Alias para getValor (compatibilidade)
+    public Long getAmount() {
+        return valor;
+    }
+    
+    public void setAmount(Long amount) {
+        this.valor = amount;
     }
 
     public String getStatus() {
@@ -337,6 +349,15 @@ public class Transacao {
 
     public void setValorCapturado(Long valorCapturado) {
         this.valorCapturado = valorCapturado;
+    }
+
+    public String getVoidReason() {
+        return voidReason;
+    }
+
+    public void setVoidReason(String voidReason) {
+        this.voidReason = voidReason;
+        this.updatedAt = ZonedDateTime.now();
     }
 }
 

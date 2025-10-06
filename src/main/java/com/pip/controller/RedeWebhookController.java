@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks da Rede
@@ -68,12 +69,14 @@ public class RedeWebhookController {
     }
 
     private void processRedeEvent(String tid, String status) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(tid);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(tid);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[REDE WEBHOOK] Transação não encontrada: {}", tid);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (status.toUpperCase()) {
             case "AUTHORIZED":

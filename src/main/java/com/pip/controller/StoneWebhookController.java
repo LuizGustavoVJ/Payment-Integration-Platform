@@ -17,6 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks do Stone
@@ -100,12 +101,14 @@ public class StoneWebhookController {
         String chargeId = (String) chargeData.get("id");
         
         // Buscar transação pelo gatewayTransactionId
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(chargeId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(chargeId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[STONE WEBHOOK] Transação não encontrada: {}", chargeId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         // Processar baseado no tipo de evento
         switch (eventType) {

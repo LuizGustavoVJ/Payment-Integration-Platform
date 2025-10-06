@@ -109,8 +109,9 @@ public class PagSeguroAdapter implements GatewayAdapter {
             );
             
             Map<String, Object> body = new HashMap<>();
-            if (request.getAmount() != null && request.getAmount() > 0) {
-                body.put("amount", Map.of("value", (int) (request.getAmount() * 100)));
+            if (request.getAmount() != null && request.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                int amountInCents = request.getAmount().multiply(java.math.BigDecimal.valueOf(100)).intValue();
+                body.put("amount", Map.of("value", amountInCents));
             }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -171,7 +172,7 @@ public class PagSeguroAdapter implements GatewayAdapter {
             
             Map<String, Object> body = new HashMap<>();
             if (request.getAmount() != null && request.getAmount() > 0) {
-                body.put("amount", Map.of("value", (int) (request.getAmount() * 100)));
+                body.put("amount", Map.of("value", request.getAmount()));
             }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -264,9 +265,9 @@ public class PagSeguroAdapter implements GatewayAdapter {
         charge.put("reference_id", transacao.getTransactionId());
         charge.put("description", request.getDescription() != null ? request.getDescription() : "Pagamento");
         
-        // amount
+        // amount (já vem em centavos)
         Map<String, Object> amount = new HashMap<>();
-        amount.put("value", (int) (request.getAmount() * 100)); // centavos
+        amount.put("value", request.getAmount());
         amount.put("currency", "BRL");
         charge.put("amount", amount);
         
@@ -305,7 +306,7 @@ public class PagSeguroAdapter implements GatewayAdapter {
     }
 
     private String getBaseUrl(Gateway gateway) {
-        return gateway.getAmbiente().toString().equals("SANDBOX") ? SANDBOX_URL : PRODUCTION_URL;
+        return gateway.getAmbiente() != null ? gateway.getAmbiente().name() : "UNKNOWN".equals("SANDBOX") ? SANDBOX_URL : PRODUCTION_URL;
     }
 
     private PaymentResponse processAuthorizationResponse(ResponseEntity<Map> response, Transacao transacao) {

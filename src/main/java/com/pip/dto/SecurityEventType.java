@@ -55,7 +55,17 @@ public enum SecurityEventType {
     INCIDENT_DETECTED("Incidente de segurança detectado"),
     INCIDENT_RESOLVED("Incidente de segurança resolvido"),
     EMERGENCY_MODE_ACTIVATED("Modo de emergência ativado"),
-    EMERGENCY_MODE_DEACTIVATED("Modo de emergência desativado");
+    EMERGENCY_MODE_DEACTIVATED("Modo de emergência desativado"),
+    
+    // Eventos de Key Rotation
+    KEY_ROTATION("Rotação de chaves realizada"),
+    KEY_ROTATION_FAILED("Falha na rotação de chaves"),
+    SECRET_ROTATED("Secret rotacionado"),
+    SECRET_ROTATION_FAILED("Falha na rotação de secret"),
+    
+    // Eventos de Backup e Recovery
+    KEY_BACKUP("Backup de chaves realizado"),
+    KEY_RECOVERY("Recuperação de chaves realizada");
     
     private final String description;
     

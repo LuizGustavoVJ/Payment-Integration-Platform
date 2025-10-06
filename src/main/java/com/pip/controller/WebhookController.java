@@ -3,6 +3,7 @@ package com.pip.controller;
 import com.pip.dto.WebhookConfigRequest;
 import com.pip.model.Lojista;
 import com.pip.model.Webhook;
+import com.pip.model.EventoWebhook;
 import com.pip.model.WebhookEvent;
 import com.pip.repository.LojistaRepository;
 import com.pip.repository.WebhookRepository;
@@ -74,8 +75,8 @@ public class WebhookController {
                 .orElseThrow(() -> new IllegalArgumentException("API Key inválida"));
 
             // Buscar ou criar webhook
-            Webhook webhook = webhookRepository.findByLojista(lojista)
-                .orElse(new Webhook());
+            List<Webhook> webhooks = webhookRepository.findByLojista(lojista);
+            Webhook webhook = webhooks.isEmpty() ? new Webhook() : webhooks.get(0);
 
             // Atualizar configuração
             webhook.setLojista(lojista);
@@ -83,8 +84,16 @@ public class WebhookController {
             webhook.setSecret(request.getSecret());
             webhook.setAtivo(request.isActive());
             
+            // Definir evento (pega o primeiro da lista ou ALL)
             if (request.getEvents() != null && !request.getEvents().isEmpty()) {
-                webhook.setEventos(String.join(",", request.getEvents()));
+                String firstEvent = request.getEvents().get(0);
+                try {
+                    webhook.setEvento(EventoWebhook.valueOf(firstEvent.toUpperCase()));
+                } catch (IllegalArgumentException e) {
+                    webhook.setEvento(EventoWebhook.ALL);
+                }
+            } else {
+                webhook.setEvento(EventoWebhook.ALL);
             }
 
             if (webhook.getId() == null) {
@@ -151,7 +160,7 @@ public class WebhookController {
                 "id", w.getId(),
                 "url", w.getUrl(),
                 "active", w.isAtivo(),
-                "events", w.getEventos() != null ? List.of(w.getEventos().split(",")) : List.of(),
+                "events", w.getEventos().stream().map(EventoWebhook::getCode).toList(),
                 "createdAt", w.getCreatedAt(),
                 "updatedAt", w.getUpdatedAt()
             )).toList());
@@ -288,8 +297,11 @@ public class WebhookController {
                 .orElseThrow(() -> new IllegalArgumentException("API Key inválida"));
 
             // Buscar webhook configurado
-            Webhook webhook = webhookRepository.findByLojista(lojista)
-                .orElseThrow(() -> new IllegalArgumentException("Nenhum webhook configurado"));
+            List<Webhook> webhooks = webhookRepository.findByLojista(lojista);
+            if (webhooks.isEmpty()) {
+                throw new IllegalArgumentException("Nenhum webhook configurado");
+            }
+            Webhook webhook = webhooks.get(0);
 
             if (!webhook.isAtivo()) {
                 throw new IllegalArgumentException("Webhook está inativo");

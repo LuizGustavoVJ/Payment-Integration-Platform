@@ -595,101 +595,16 @@ public class Gateway {
 /**
  * Enum para tipos de gateway
  */
-enum TipoGateway {
-    ACQUIRER("acquirer", "Adquirente"),
-    SUBACQUIRER("subacquirer", "Subadquirente"),
-    FACILITATOR("facilitator", "Facilitador de Pagamento"),
-    WALLET("wallet", "Carteira Digital");
-
-    private final String code;
-    private final String description;
-
-    TipoGateway(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para status do gateway
  */
-enum StatusGateway {
-    ACTIVE("active", "Ativo"),
-    INACTIVE("inactive", "Inativo"),
-    MAINTENANCE("maintenance", "Em manutenção");
-
-    private final String code;
-    private final String description;
-
-    StatusGateway(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para ambiente do gateway
  */
-enum AmbienteGateway {
-    SANDBOX("sandbox", "Ambiente de testes"),
-    PRODUCTION("production", "Ambiente de produção");
-
-    private final String code;
-    private final String description;
-
-    AmbienteGateway(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para status de saúde do gateway
  */
-enum HealthStatus {
-    UP("up", "Funcionando"),
-    DOWN("down", "Fora do ar"),
-    DEGRADED("degraded", "Funcionamento degradado"),
-    UNKNOWN("unknown", "Status desconhecido");
-
-    private final String code;
-    private final String description;
-
-    HealthStatus(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 

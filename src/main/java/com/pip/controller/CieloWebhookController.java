@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks da Cielo
@@ -75,12 +76,14 @@ public class CieloWebhookController {
     }
 
     private void processCieloEvent(String paymentId, Integer changeType) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(paymentId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(paymentId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[CIELO WEBHOOK] Transação não encontrada: {}", paymentId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (changeType) {
             case 1: // Authorized

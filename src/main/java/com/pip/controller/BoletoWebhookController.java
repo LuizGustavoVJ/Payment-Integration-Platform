@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks de Boleto Bancário
@@ -76,12 +77,14 @@ public class BoletoWebhookController {
     }
 
     private void processBoletoEvent(String eventType, String nossoNumero, Map<String, Object> boleto) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(nossoNumero);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(nossoNumero);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[BOLETO WEBHOOK] Transação não encontrada: {}", nossoNumero);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (eventType) {
             case "boleto.registered":

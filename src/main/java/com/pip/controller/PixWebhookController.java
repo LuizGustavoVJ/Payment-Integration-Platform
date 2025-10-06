@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks do PIX (Banco Central)
@@ -73,12 +74,14 @@ public class PixWebhookController {
     }
 
     private void processPixEvent(String eventType, String txid, Map<String, Object> pix) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(txid);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(txid);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[PIX WEBHOOK] Transação não encontrada: {}", txid);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (eventType) {
             case "pix.received":

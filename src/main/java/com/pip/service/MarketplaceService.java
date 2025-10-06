@@ -1,5 +1,6 @@
 package com.pip.service;
 
+import com.pip.dto.Customer;
 import com.pip.dto.AuthorizationRequest;
 import com.pip.model.Gateway;
 import com.pip.model.Transacao;
@@ -125,17 +126,17 @@ public class MarketplaceService {
         // Dados do pagador
         if (request.getCustomer() != null) {
             Map<String, Object> payer = new HashMap<>();
-            payer.put("email", request.getCustomer().get("email"));
+            payer.put("email", request.getCustomer().getEmail());
             payer.put("identification", Map.of(
                 "type", "CPF",
-                "number", request.getCustomer().get("document")
+                "number", request.getCustomer().getDocument()
             ));
             payload.put("payer", payer);
         }
 
         // Configuração de marketplace
         payload.put("marketplace", "PIP");
-        payload.put("marketplace_fee", calculateMarketplaceFee(request.getAmount(), marketplaceFee));
+        payload.put("marketplace_fee", calculateMarketplaceFee(request.getAmount().doubleValue(), marketplaceFee));
 
         // Dados do vendedor (collector)
         payload.put("collector_id", sellerId);

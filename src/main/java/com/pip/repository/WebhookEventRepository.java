@@ -60,4 +60,21 @@ public interface WebhookEventRepository extends JpaRepository<WebhookEvent, UUID
      */
     @Query("SELECT w FROM WebhookEvent w WHERE w.status = 'FAILED' AND w.tentativas < w.maxTentativas AND w.proximaTentativa <= :agora")
     List<WebhookEvent> findFailedEventsForRetry(@Param("agora") ZonedDateTime agora);
+    
+    /**
+     * Busca eventos por lojista e status com paginação
+     */
+    org.springframework.data.domain.Page<WebhookEvent> findByLojistaAndStatus(
+        com.pip.model.Lojista lojista, 
+        String status, 
+        org.springframework.data.domain.Pageable pageable
+    );
+    
+    /**
+     * Busca eventos por lojista com paginação
+     */
+    org.springframework.data.domain.Page<WebhookEvent> findByLojista(
+        com.pip.model.Lojista lojista, 
+        org.springframework.data.domain.Pageable pageable
+    );
 }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks do Mercado Pago
@@ -90,12 +91,14 @@ public class MercadoPagoWebhookController {
 
     private void processPaymentEvent(String paymentId, String action) {
         // Buscar transação
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(paymentId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(paymentId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[MERCADOPAGO WEBHOOK] Transação não encontrada: {}", paymentId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         // Processar baseado na action
         switch (action) {

@@ -31,5 +31,10 @@ public interface WebhookRepository extends JpaRepository<Webhook, UUID> {
     List<Webhook> findUnhealthyWebhooks(@Param("taxaMinima") Double taxaMinima);
     
     List<Webhook> findByLojistaOrderByCreatedAtDesc(Lojista lojista);
+    
+    // Métodos adicionais para compatibilidade
+    List<Webhook> findAllByLojista(Lojista lojista);
+    
+    List<Webhook> findByLojista(Lojista lojista);
 }
 

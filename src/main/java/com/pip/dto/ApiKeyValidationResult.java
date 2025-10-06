@@ -27,6 +27,14 @@ public class ApiKeyValidationResult {
         return new ApiKeyValidationResult(false, reason);
     }
     
+    public static ApiKeyValidationResult error(String reason) {
+        return new ApiKeyValidationResult(false, reason);
+    }
+    
+    public static ApiKeyValidationResult rateLimited(String reason) {
+        return new ApiKeyValidationResult(false, reason);
+    }
+    
     // Getters and Setters
     public boolean isValid() {
         return valid;

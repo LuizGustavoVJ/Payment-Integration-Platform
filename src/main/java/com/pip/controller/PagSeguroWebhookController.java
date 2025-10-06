@@ -16,6 +16,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks do PagSeguro
@@ -88,12 +89,14 @@ public class PagSeguroWebhookController {
     private void processPagSeguroEvent(String eventType, Map<String, Object> chargeData) {
         String chargeId = (String) chargeData.get("id");
         
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(chargeId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(chargeId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[PAGSEGURO WEBHOOK] Transação não encontrada: {}", chargeId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (eventType) {
             case "CHARGE.PAID":

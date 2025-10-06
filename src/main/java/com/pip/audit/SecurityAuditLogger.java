@@ -406,29 +406,26 @@ public class SecurityAuditLogger {
         // Calcular checksum para integridade
         String checksum = calculateChecksum(eventId, timestamp, eventType, merchantId, enrichedData);
         
-        return AuditEvent.builder()
-            .eventId(eventId)
-            .timestamp(timestamp)
-            .eventType(eventType)
-            .merchantId(merchantId)
-            .data(enrichedData)
-            .checksum(checksum)
-            .build();
+        AuditEvent event = new AuditEvent();
+        event.setEventType(eventType.name());
+        event.setUserId(merchantId);
+        event.setTimestamp(timestamp.atZone(java.time.ZoneId.systemDefault()));
+        event.setMetadata(enrichedData);
+        return event;
     }
     
     private void logSecurityEvent(AuditEvent event) {
         try {
             // Configurar MDC para logging estruturado
-            MDC.put("eventId", event.getEventId());
-            MDC.put("eventType", event.getEventType().toString());
-            MDC.put("merchantId", event.getMerchantId());
+            MDC.put("eventType", event.getEventType());
+            MDC.put("userId", event.getUserId());
             MDC.put("timestamp", event.getTimestamp().toString());
             
             // Log local estruturado
             securityLogger.info("SECURITY_EVENT: {}", objectMapper.writeValueAsString(event));
             
             // Enviar para Kafka para processamento assíncrono
-            kafkaTemplate.send("security-events", event.getEventId(), event);
+            kafkaTemplate.send("security-events", event.getUserId(), event);
             
         } catch (Exception e) {
             logger.error("Failed to log security event", e);
@@ -478,6 +475,112 @@ public class SecurityAuditLogger {
             logger.error("Failed to calculate checksum", e);
             return "sha256:error";
         }
+    }
+    
+    // Métodos para Key Rotation Service
+    public void logKeyRotationCompleted(int rotatedCount, int failedCount) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("rotatedCount", rotatedCount);
+        data.put("failedCount", failedCount);
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_ROTATION, "system", data);
+        logSecurityEvent(event);
+        
+        logger.info("Key rotation completed: {} rotated, {} failed", rotatedCount, failedCount);
+    }
+    
+    public void logKeyRotationFailed(Exception e) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("error", e.getMessage());
+        data.put("errorType", e.getClass().getSimpleName());
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_ROTATION_FAILED, "system", data);
+        logSecurityEvent(event);
+        
+        logger.error("Key rotation failed", e);
+    }
+    
+    public void logSecretRotated(String secretName) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("secretName", secretName);
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.SECRET_ROTATED, "system", data);
+        logSecurityEvent(event);
+        
+        logger.info("Secret rotated: {}", secretName);
+    }
+    
+    public void logSecretRotationFailed(String secretName, Exception e) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("secretName", secretName);
+        data.put("error", e.getMessage());
+        data.put("errorType", e.getClass().getSimpleName());
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.SECRET_ROTATION_FAILED, "system", data);
+        logSecurityEvent(event);
+        
+        logger.error("Secret rotation failed for: {}", secretName, e);
+    }
+    
+    /**
+     * Log de backup completado
+     */
+    public void logBackupCompleted(String backupPath, int secretCount) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("backupPath", backupPath);
+        data.put("secretCount", secretCount);
+        data.put("action", "BACKUP_COMPLETED");
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_BACKUP, "system", data);
+        logSecurityEvent(event);
+        
+        logger.info("Backup completed: {} secrets backed up to {}", secretCount, backupPath);
+    }
+    
+    /**
+     * Log de falha no backup
+     */
+    public void logBackupFailed(Exception e) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("error", e.getMessage());
+        data.put("errorType", e.getClass().getSimpleName());
+        data.put("action", "BACKUP_FAILED");
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_BACKUP, "system", data);
+        logSecurityEvent(event);
+        
+        logger.error("Backup failed", e);
+    }
+    
+    /**
+     * Log de recuperação completada
+     */
+    public void logRecoveryCompleted(String backupPath, int secretCount) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("backupPath", backupPath);
+        data.put("secretCount", secretCount);
+        data.put("action", "RECOVERY_COMPLETED");
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_RECOVERY, "system", data);
+        logSecurityEvent(event);
+        
+        logger.info("Recovery completed: {} secrets recovered from {}", secretCount, backupPath);
+    }
+    
+    /**
+     * Log de falha na recuperação
+     */
+    public void logRecoveryFailed(String backupPath, Exception e) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("backupPath", backupPath);
+        data.put("error", e.getMessage());
+        data.put("errorType", e.getClass().getSimpleName());
+        data.put("action", "RECOVERY_FAILED");
+        
+        AuditEvent event = createAuditEvent(SecurityEventType.KEY_RECOVERY, "system", data);
+        logSecurityEvent(event);
+        
+        logger.error("Recovery failed from: {}", backupPath, e);
     }
 }
 

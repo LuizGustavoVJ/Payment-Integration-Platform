@@ -113,4 +113,35 @@ public class PaymentResponse {
     public void setAdditionalData(Map<String, Object> additionalData) {
         this.additionalData = additionalData;
     }
+    
+    // Campos adicionais para gateways específicos
+    private String eci;
+    private Long responseTime;
+    
+    public String getEci() {
+        return eci;
+    }
+    
+    public void setEci(String eci) {
+        this.eci = eci;
+    }
+    
+    public Long getResponseTime() {
+        return responseTime;
+    }
+    
+    public void setResponseTime(Long responseTime) {
+        this.responseTime = responseTime;
+    }
+    
+    // Campo adicional para bandeira do cartão
+    private String cardBrand;
+    
+    public String getCardBrand() {
+        return cardBrand;
+    }
+    
+    public void setCardBrand(String cardBrand) {
+        this.cardBrand = cardBrand;
+    }
 }
