@@ -127,8 +127,10 @@ public class CieloAdapter implements GatewayAdapter {
             );
             
             // Adicionar amount se for captura parcial
-            if (request.getAmount() != null && request.getAmount() > 0) {
-                url += "?amount=" + (int) (request.getAmount() * 100);
+            if (request.getAmount() != null && request.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                // Converter para centavos
+                int amountInCents = request.getAmount().multiply(java.math.BigDecimal.valueOf(100)).intValue();
+                url += "?amount=" + amountInCents;
             }
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -195,7 +197,7 @@ public class CieloAdapter implements GatewayAdapter {
             
             // Adicionar amount se for cancelamento parcial
             if (request.getAmount() != null && request.getAmount() > 0) {
-                url += "?amount=" + (int) (request.getAmount() * 100);
+                url += "?amount=" + request.getAmount();
             }
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -305,47 +307,15 @@ public class CieloAdapter implements GatewayAdapter {
         // ===== CUSTOMER (opcional mas recomendado) =====
         if (request.getCustomer() != null) {
             Map<String, Object> customer = new HashMap<>();
-            customer.put("Name", request.getCustomer().get("name"));
+            customer.put("Name", request.getCustomer().getName());
             
-            if (request.getCustomer().containsKey("email")) {
-                customer.put("Email", request.getCustomer().get("email"));
+            if (request.getCustomer().getEmail() != null) {
+                customer.put("Email", request.getCustomer().getEmail());
             }
             
-            if (request.getCustomer().containsKey("document")) {
-                customer.put("Identity", request.getCustomer().get("document"));
+            if (request.getCustomer().getDocument() != null) {
+                customer.put("Identity", request.getCustomer().getDocument());
                 customer.put("IdentityType", "CPF");
-            }
-            
-            if (request.getCustomer().containsKey("birthdate")) {
-                customer.put("Birthdate", request.getCustomer().get("birthdate"));
-            }
-            
-            // Address
-            if (request.getCustomer().containsKey("address")) {
-                Map<String, Object> addressData = (Map<String, Object>) request.getCustomer().get("address");
-                Map<String, Object> address = new HashMap<>();
-                address.put("Street", addressData.get("street"));
-                address.put("Number", addressData.get("number"));
-                address.put("Complement", addressData.get("complement"));
-                address.put("ZipCode", addressData.get("zipcode"));
-                address.put("City", addressData.get("city"));
-                address.put("State", addressData.get("state"));
-                address.put("Country", "BRA");
-                customer.put("Address", address);
-            }
-            
-            // DeliveryAddress
-            if (request.getCustomer().containsKey("delivery_address")) {
-                Map<String, Object> deliveryData = (Map<String, Object>) request.getCustomer().get("delivery_address");
-                Map<String, Object> deliveryAddress = new HashMap<>();
-                deliveryAddress.put("Street", deliveryData.get("street"));
-                deliveryAddress.put("Number", deliveryData.get("number"));
-                deliveryAddress.put("Complement", deliveryData.get("complement"));
-                deliveryAddress.put("ZipCode", deliveryData.get("zipcode"));
-                deliveryAddress.put("City", deliveryData.get("city"));
-                deliveryAddress.put("State", deliveryData.get("state"));
-                deliveryAddress.put("Country", "BRA");
-                customer.put("DeliveryAddress", deliveryAddress);
             }
             
             payload.put("Customer", customer);
@@ -357,8 +327,8 @@ public class CieloAdapter implements GatewayAdapter {
         // Type (obrigatório)
         payment.put("Type", "CreditCard");
         
-        // Amount (obrigatório) - em centavos
-        payment.put("Amount", (int) (request.getAmount() * 100));
+        // Amount (obrigatório) - em centavos (já vem em centavos do request)
+        payment.put("Amount", request.getAmount());
         
         // Currency (opcional, default BRL)
         payment.put("Currency", request.getCurrency() != null ? request.getCurrency() : "BRL");
@@ -405,23 +375,8 @@ public class CieloAdapter implements GatewayAdapter {
         payment.put("CreditCard", creditCard);
         
         // ===== EXTERNALAUTHENTICATION (opcional) - 3DS 2.0 =====
-        if (request.getExternalAuthentication() != null) {
-            Map<String, Object> externalAuth = new HashMap<>();
-            externalAuth.put("Cavv", request.getExternalAuthentication().get("cavv"));
-            externalAuth.put("Xid", request.getExternalAuthentication().get("xid"));
-            externalAuth.put("Eci", request.getExternalAuthentication().get("eci"));
-            externalAuth.put("Version", request.getExternalAuthentication().get("version"));
-            externalAuth.put("ReferenceId", request.getExternalAuthentication().get("reference_id"));
-            payment.put("ExternalAuthentication", externalAuth);
-        }
-        
-        // ===== INITIATEDTRANSACTIONINDICATOR (obrigatório para Mastercard com stored credentials) =====
-        if (request.getInitiatedTransactionIndicator() != null) {
-            Map<String, Object> indicator = new HashMap<>();
-            indicator.put("Category", request.getInitiatedTransactionIndicator().get("category"));
-            indicator.put("SubCategory", request.getInitiatedTransactionIndicator().get("subcategory"));
-            payment.put("InitiatedTransactionIndicator", indicator);
-        }
+        // ExternalAuthentication e InitiatedTransactionIndicator são strings simples
+        // Se precisar de estruturas complexas, devem ser tratadas separadamente
         
         payload.put("Payment", payment);
         

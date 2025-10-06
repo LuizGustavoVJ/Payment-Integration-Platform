@@ -70,15 +70,14 @@ public class PagamentoService {
         transacao.setValor(request.getAmount());
         transacao.setMoeda(request.getCurrency());
         transacao.setParcelas(request.getInstallments());
-        transacao.setDescricao(request.getDescription());
         transacao.setStatus(TransactionStatus.PENDING.toString());
         transacao.setCreatedAt(ZonedDateTime.now());
 
         // Dados do cliente
         if (request.getCustomer() != null) {
-            transacao.setCustomerName(request.getCustomer().get("name"));
-            transacao.setCustomerEmail(request.getCustomer().get("email"));
-            transacao.setCustomerDocument(request.getCustomer().get("document"));
+            transacao.setCustomerName(request.getCustomer().getName());
+            transacao.setCustomerEmail(request.getCustomer().getEmail());
+            transacao.setCustomerDocument(request.getCustomer().getDocument());
         }
 
         // Salvar transação inicial
@@ -160,7 +159,7 @@ public class PagamentoService {
         }
 
         // Validar valor
-        if (request.getAmount().compareTo(BigDecimal.valueOf(transacao.getValor())) > 0) {
+        if (request.getAmount().longValue() > transacao.getValor()) {
             throw new IllegalArgumentException("Valor da captura não pode ser maior que o valor autorizado");
         }
 
@@ -284,9 +283,11 @@ public class PagamentoService {
             .orElseThrow(() -> new IllegalArgumentException("Transação não encontrada: " + transactionId));
 
         PaymentResponse response = new PaymentResponse();
-        response.setSuccess(transacao.getStatus().equals(TransactionStatus.AUTHORIZED || 
-                           transacao.getStatus().equals(TransactionStatus.CAPTURED);
-        response.setStatus(transacao.getStatus().name());
+        response.setSuccess(
+            transacao.getStatus().equals(TransactionStatus.AUTHORIZED.toString()) ||
+            transacao.getStatus().equals(TransactionStatus.CAPTURED.toString())
+        );
+        response.setStatus(transacao.getStatus());
         response.setTransactionId(transacao.getTransactionId());
         response.setGatewayTransactionId(transacao.getGatewayTransactionId());
         response.setAuthorizationCode(transacao.getAuthorizationCode());
@@ -341,8 +342,18 @@ public class PagamentoService {
     private void registrarLog(Transacao transacao, String evento, String descricao) {
         LogTransacao log = new LogTransacao();
         log.setTransacao(transacao);
-        log.setEvento(evento);
-        log.setDescricao(descricao);
+        log.setLojista(transacao.getLojista());
+        
+        // Converter string evento para enum EventoLog
+        EventoLog eventoLog;
+        try {
+            eventoLog = EventoLog.valueOf(evento.toUpperCase().replace(".", "_"));
+        } catch (IllegalArgumentException e) {
+            eventoLog = EventoLog.SYSTEM_ERROR;
+        }
+        log.setEvento(eventoLog);
+        log.setNivel(NivelLog.INFO);
+        log.setMensagem(descricao);
         log.setTimestamp(ZonedDateTime.now());
         logTransacaoRepository.save(log);
     }

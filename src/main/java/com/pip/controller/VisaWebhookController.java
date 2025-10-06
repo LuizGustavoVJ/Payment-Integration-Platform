@@ -17,6 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks da Visa Direct
@@ -84,12 +85,14 @@ public class VisaWebhookController {
     }
 
     private void processVisaEvent(String eventType, String transactionId, Map<String, Object> transaction) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(transactionId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(transactionId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[VISA WEBHOOK] Transação não encontrada: {}", transactionId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (eventType) {
             case "transaction.completed":

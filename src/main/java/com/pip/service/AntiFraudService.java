@@ -1,6 +1,7 @@
 package com.pip.service;
 
 import com.pip.dto.AuthorizationRequest;
+import com.pip.dto.Customer;
 import com.pip.model.Transacao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,13 +103,13 @@ public class AntiFraudService {
         if (request.getCustomer() == null) {
             score += 30; // Sem dados do cliente
         } else {
-            Map<String, Object> customer = request.getCustomer();
+            Customer customer = request.getCustomer();
             
-            if (customer.get("email") == null || customer.get("email").toString().isEmpty()) {
+            if (customer.getEmail() == null || customer.getEmail().isEmpty()) {
                 score += 15; // Sem email
             }
             
-            if (customer.get("document") == null || customer.get("document").toString().isEmpty()) {
+            if (customer.getDocument() == null || customer.getDocument().isEmpty()) {
                 score += 15; // Sem documento
             }
         }

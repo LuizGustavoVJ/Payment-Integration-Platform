@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller para receber webhooks da Mastercard Payment Gateway Services
@@ -74,12 +75,14 @@ public class MastercardWebhookController {
     }
 
     private void processMastercardEvent(String eventType, String orderId, Map<String, Object> transaction) {
-        Transacao transacao = transacaoRepository.findByGatewayTransactionId(orderId);
+        Optional<Transacao> transacaoOpt = transacaoRepository.findByGatewayTransactionId(orderId);
         
-        if (transacao == null) {
+        if (!transacaoOpt.isPresent()) {
             logger.warn("[MASTERCARD WEBHOOK] Transação não encontrada: {}", orderId);
             return;
         }
+        
+        Transacao transacao = transacaoOpt.get();
 
         switch (eventType.toUpperCase()) {
             case "AUTHORIZED":

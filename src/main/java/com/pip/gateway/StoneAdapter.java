@@ -122,7 +122,7 @@ public class StoneAdapter implements GatewayAdapter {
             
             // Construir payload de captura
             Map<String, Object> payload = new HashMap<>();
-            payload.put("amount", (int) (request.getAmount() * 100)); // Centavos
+            payload.put("amount", request.getAmount().multiply(java.math.BigDecimal.valueOf(100)).intValue()); // Centavos
 
             // Configurar headers
             HttpHeaders headers = buildHeaders(gateway, null);
@@ -286,9 +286,8 @@ public class StoneAdapter implements GatewayAdapter {
         payload.put("initiator_id", transacao.getTransactionId());
         
         // reference_id (opcional) - Identificador do pedido/referência externa
-        if (request.getOrderId() != null) {
-            payload.put("reference_id", request.getOrderId());
-        }
+        // OrderId não implementado no AuthorizationRequest
+        payload.put("reference_id", transacao.getTransactionId());
         
         // local_datetime (obrigatório) - ISO8601
         payload.put("local_datetime", ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
@@ -301,7 +300,7 @@ public class StoneAdapter implements GatewayAdapter {
         Map<String, Object> cardTransaction = new HashMap<>();
         
         // type (obrigatório) - credit ou debit
-        cardTransaction.put("type", request.getCardType() != null ? request.getCardType() : "credit");
+        cardTransaction.put("type", "credit"); // Padrão: crédito
         
         // operation_type (obrigatório) - auth_and_capture ou auth_only
         cardTransaction.put("operation_type", "auth_only"); // Autorização sem captura automática
@@ -324,62 +323,33 @@ public class StoneAdapter implements GatewayAdapter {
         cardTransaction.put("card", card);
         
         // authentication (opcional) - Para 3DS
-        if (request.getThreeDSecure() != null && request.getThreeDSecure()) {
-            Map<String, Object> authentication = new HashMap<>();
-            authentication.put("type", "three_d_secure");
-            cardTransaction.put("authentication", authentication);
-        }
+        // ThreeDSecure não implementado no AuthorizationRequest
         
         payload.put("card_transaction", cardTransaction);
         
         // ===== SUB_MERCHANT (opcional) - Para facilitadores =====
         
-        if (request.getSubMerchant() != null) {
-            Map<String, Object> subMerchant = new HashMap<>();
-            subMerchant.put("document_type", "cpf");
-            subMerchant.put("document", request.getSubMerchant().get("document"));
-            subMerchant.put("name", request.getSubMerchant().get("name"));
-            
-            // Endereço do sub-merchant
-            Map<String, Object> address = new HashMap<>();
-            address.put("country_code", "076"); // Brasil
-            subMerchant.put("address", address);
-            
-            payload.put("sub_merchant", subMerchant);
-        }
+        // SubMerchant não implementado
         
         // ===== CUSTOMER (opcional) - Dados do comprador =====
         
         if (request.getCustomer() != null) {
             Map<String, Object> customer = new HashMap<>();
-            customer.put("name", request.getCustomer().get("name"));
-            customer.put("email", request.getCustomer().get("email"));
+            customer.put("name", request.getCustomer().getName());
+            customer.put("email", request.getCustomer().getEmail());
             customer.put("document_type", "cpf");
-            customer.put("document", request.getCustomer().get("document"));
+            customer.put("document", request.getCustomer().getDocument());
             
             // Telefone do cliente
-            if (request.getCustomer().containsKey("phone")) {
-                customer.put("phone", request.getCustomer().get("phone"));
+            if (request.getCustomer().getPhone() != null) {
+                customer.put("phone", request.getCustomer().getPhone());
             }
             
             payload.put("customer", customer);
         }
         
         // ===== ITEMS (opcional) - Itens da compra =====
-        
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
-            List<Map<String, Object>> items = new ArrayList<>();
-            
-            for (Map<String, Object> item : request.getItems()) {
-                Map<String, Object> itemMap = new HashMap<>();
-                itemMap.put("description", item.get("description"));
-                itemMap.put("quantity", item.get("quantity"));
-                itemMap.put("unit_price", item.get("unit_price"));
-                items.add(itemMap);
-            }
-            
-            payload.put("items", items);
-        }
+        // Items não implementado
         
         // ===== PARTNER_PLATFORM_ID (opcional) =====
         payload.put("partner_platform_id", "PIP-Platform");
@@ -421,7 +391,7 @@ public class StoneAdapter implements GatewayAdapter {
      * Determina o Host header correto conforme ambiente e modelo de negócio
      */
     private String getHostHeader(Gateway gateway) {
-        boolean isSandbox = gateway.getAmbiente().toString().equals("SANDBOX");
+        boolean isSandbox = gateway.getAmbiente() != null && gateway.getAmbiente().name().equals("SANDBOX");
         boolean isGateway = gateway.getMerchantId().startsWith("GTW"); // Convenção para identificar gateways
         
         if (isSandbox) {

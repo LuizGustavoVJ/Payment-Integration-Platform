@@ -138,9 +138,9 @@ public class RedeAdapter implements GatewayAdapter {
             
             // Body com amount (opcional para captura parcial)
             Map<String, Object> body = new HashMap<>();
-            if (request.getAmount() != null && request.getAmount() > 0) {
+            if (request.getAmount() != null && request.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
                 // Valor sem separador de milhar e decimal (ex: R$10,00 = 1000)
-                body.put("amount", (int) (request.getAmount() * 100));
+                body.put("amount", request.getAmount().multiply(java.math.BigDecimal.valueOf(100)).intValue());
             }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -379,21 +379,11 @@ public class RedeAdapter implements GatewayAdapter {
             payload.put("softDescriptor", request.getSoftDescriptor());
         }
         
-        // ===== IATA (opcional) - Para companhias aéreas =====
-        if (request.getIata() != null) {
-            Map<String, Object> iata = new HashMap<>();
-            iata.put("code", request.getIata().get("code"));
-            iata.put("departureTax", request.getIata().get("departure_tax"));
-            payload.put("iata", iata);
-        }
+        // IATA e ThreeDS são strings simples ou devem ser tratados separadamente se necessário
         
-        // ===== THREEDS (opcional) - 3D Secure 2.0 =====
-        if (request.getThreeDS() != null) {
-            Map<String, Object> threeDS = new HashMap<>();
-            threeDS.put("cavv", request.getThreeDS().get("cavv"));
-            threeDS.put("eci", request.getThreeDS().get("eci"));
-            threeDS.put("xid", request.getThreeDS().get("xid"));
-            payload.put("threeds", threeDS);
+        // ThreeDS - se necessário, usar os dados do Map
+        if (request.getThreeDS() != null && !request.getThreeDS().isEmpty()) {
+            payload.put("threeds", request.getThreeDS());
         }
         
         logger.debug("[REDE] Payload construído com {} campos principais", payload.size());

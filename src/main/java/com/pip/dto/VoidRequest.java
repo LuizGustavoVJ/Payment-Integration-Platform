@@ -15,6 +15,8 @@ public class VoidRequest {
     @Size(max = 1000, message = "As observações não podem exceder 1000 caracteres")
     private String notes;
     
+    private Long amount; // Valor parcial para cancelamento (em centavos)
+    
     // Construtor padrão
     public VoidRequest() {}
     
@@ -39,6 +41,14 @@ public class VoidRequest {
     
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+    
+    public Long getAmount() {
+        return amount;
+    }
+    
+    public void setAmount(Long amount) {
+        this.amount = amount;
     }
     
     @Override

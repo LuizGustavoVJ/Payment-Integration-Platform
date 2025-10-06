@@ -114,7 +114,7 @@ public class MercadoPagoAdapter implements GatewayAdapter {
             Map<String, Object> body = new HashMap<>();
             body.put("capture", true);
             
-            if (request.getAmount() != null && request.getAmount() > 0) {
+            if (request.getAmount() != null && request.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
                 body.put("transaction_amount", request.getAmount());
             }
 

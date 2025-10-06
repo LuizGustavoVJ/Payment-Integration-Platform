@@ -375,65 +375,8 @@ public class LogTransacao {
 /**
  * Enum para eventos de log
  */
-enum EventoLog {
-    PAYMENT_REQUEST("payment.request", "Requisição de pagamento recebida"),
-    PAYMENT_VALIDATION("payment.validation", "Validação de dados de pagamento"),
-    GATEWAY_SELECTION("gateway.selection", "Seleção de gateway"),
-    GATEWAY_REQUEST("gateway.request", "Requisição enviada ao gateway"),
-    GATEWAY_RESPONSE("gateway.response", "Resposta recebida do gateway"),
-    PAYMENT_AUTHORIZED("payment.authorized", "Pagamento autorizado"),
-    PAYMENT_CAPTURED("payment.captured", "Pagamento capturado"),
-    PAYMENT_VOIDED("payment.voided", "Pagamento cancelado"),
-    PAYMENT_FAILED("payment.failed", "Pagamento falhou"),
-    WEBHOOK_SENT("webhook.sent", "Webhook enviado"),
-    WEBHOOK_FAILED("webhook.failed", "Falha no envio de webhook"),
-    SECURITY_VIOLATION("security.violation", "Violação de segurança"),
-    RATE_LIMIT_EXCEEDED("rate.limit.exceeded", "Limite de taxa excedido"),
-    API_KEY_VALIDATION("api.key.validation", "Validação de API Key"),
-    SYSTEM_ERROR("system.error", "Erro do sistema");
-
-    private final String code;
-    private final String description;
-
-    EventoLog(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para níveis de log
  */
-enum NivelLog {
-    TRACE("trace", "Rastreamento detalhado"),
-    DEBUG("debug", "Informações de debug"),
-    INFO("info", "Informações gerais"),
-    WARN("warn", "Aviso"),
-    ERROR("error", "Erro"),
-    FATAL("fatal", "Erro fatal");
-
-    private final String code;
-    private final String description;
-
-    NivelLog(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 

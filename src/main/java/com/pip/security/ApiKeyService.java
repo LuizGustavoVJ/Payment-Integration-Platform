@@ -6,6 +6,7 @@ import com.pip.dto.ApiKeyValidationResult;
 import com.pip.exception.SecurityException;
 import com.pip.repository.ApiKeyRepository;
 import com.pip.model.ApiKey;
+import com.pip.model.StatusApiKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -14,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,7 +62,7 @@ public class ApiKeyService {
             String hashedKey = hashApiKey(apiKey);
             
             // Buscar no banco de dados
-            ApiKey storedKey = apiKeyRepository.findByKeyHash(hashedKey);
+            ApiKey storedKey = apiKeyRepository.findByKeyHash(hashedKey).orElse(null);
             
             if (storedKey == null) {
                 auditLogger.logInvalidApiKeyAttempt(apiKey, "API key not found");
@@ -67,46 +70,48 @@ public class ApiKeyService {
             }
             
             // Verificar se a chave está ativa
-            if (!storedKey.isActive()) {
+            if (storedKey.getStatus() != StatusApiKey.ACTIVE) {
                 auditLogger.logInvalidApiKeyAttempt(apiKey, "API key is inactive");
                 return ApiKeyValidationResult.invalid("API key is inactive");
             }
             
             // Verificar expiração
-            if (storedKey.getExpiresAt().isBefore(Instant.now())) {
+            if (storedKey.getExpiresAt() != null && toInstant(storedKey.getExpiresAt()).isBefore(Instant.now())) {
                 auditLogger.logInvalidApiKeyAttempt(apiKey, "API key expired");
                 return ApiKeyValidationResult.invalid("API key expired");
             }
             
             // Verificar rate limiting
-            if (!checkRateLimit(storedKey.getMerchantId())) {
-                auditLogger.logRateLimitExceeded(apiKey, storedKey.getMerchantId());
+            String merchantId = storedKey.getLojista().getId().toString();
+            if (!checkRateLimit(merchantId)) {
+                auditLogger.logRateLimitExceeded(apiKey, merchantId);
                 return ApiKeyValidationResult.rateLimited("Rate limit exceeded");
             }
             
             // Verificar se precisa de rotação
             if (needsRotation(storedKey)) {
-                auditLogger.logApiKeyRotationNeeded(storedKey.getMerchantId());
+                auditLogger.logApiKeyRotationNeeded(merchantId);
                 // Notificar merchant sobre necessidade de rotação
-                notifyRotationNeeded(storedKey.getMerchantId());
+                notifyRotationNeeded(merchantId);
             }
             
             // Atualizar último uso
-            storedKey.setLastUsedAt(Instant.now());
+            storedKey.setLastUsedAt(toZonedDateTime(Instant.now()));
             apiKeyRepository.save(storedKey);
             
             // Log de uso bem-sucedido
-            auditLogger.logApiKeyUsage(storedKey.getMerchantId(), apiKey);
+            auditLogger.logApiKeyUsage(merchantId, apiKey);
             
-            return ApiKeyValidationResult.valid(
-                ApiKeyInfo.builder()
-                    .merchantId(storedKey.getMerchantId())
-                    .keyId(storedKey.getId())
-                    .environment(storedKey.getEnvironment())
-                    .permissions(storedKey.getPermissions())
-                    .expiresAt(storedKey.getExpiresAt())
-                    .build()
-            );
+            // Retornar informações da chave
+            ApiKeyInfo keyInfo = new ApiKeyInfo();
+            keyInfo.setLojistaId(merchantId);
+            keyInfo.setLojistaNome(storedKey.getLojista().getNomeFantasia());
+            keyInfo.setKeyId(storedKey.getId().toString());
+            keyInfo.setEnvironment(storedKey.getAmbiente().getCode());
+            keyInfo.setActive(storedKey.getStatus() == StatusApiKey.ACTIVE);
+            keyInfo.setExpiresAt(storedKey.getExpiresAt());
+            
+            return ApiKeyValidationResult.valid(keyInfo);
             
         } catch (Exception e) {
             auditLogger.logApiKeyValidationError(apiKey, e);
@@ -129,15 +134,10 @@ public class ApiKeyService {
             String hashedKey = hashApiKey(apiKey);
             
             // Criar registro no banco
-            ApiKey keyRecord = ApiKey.builder()
-                .merchantId(merchantId)
-                .keyHash(hashedKey)
-                .environment(environment)
-                .isActive(true)
-                .createdAt(Instant.now())
-                .expiresAt(Instant.now().plus(ROTATION_DAYS, ChronoUnit.DAYS))
-                .permissions("PAYMENT_PROCESSING,TRANSACTION_QUERY")
-                .build();
+            ApiKey keyRecord = new ApiKey();
+            keyRecord.setKeyHash(hashedKey);
+            keyRecord.setEscopo("PAYMENT_PROCESSING,TRANSACTION_QUERY");
+            keyRecord.setExpiresAt(toZonedDateTime(Instant.now().plus(ROTATION_DAYS, ChronoUnit.DAYS)));
             
             apiKeyRepository.save(keyRecord);
             
@@ -168,13 +168,14 @@ public class ApiKeyService {
             
             // Desativar chave atual
             String hashedKey = hashApiKey(currentApiKey);
-            ApiKey currentKey = apiKeyRepository.findByKeyHash(hashedKey);
-            currentKey.setActive(false);
-            currentKey.setRotatedAt(Instant.now());
+            ApiKey currentKey = apiKeyRepository.findByKeyHash(hashedKey)
+                .orElseThrow(() -> new SecurityException("API key not found"));
+            currentKey.setStatus(StatusApiKey.REVOKED);
+            currentKey.setRotatedAt(toZonedDateTime(Instant.now()));
             apiKeyRepository.save(currentKey);
             
             // Gerar nova chave
-            String newApiKey = generateApiKey(merchantId, currentKey.getEnvironment());
+            String newApiKey = generateApiKey(merchantId, currentKey.getAmbiente().getCode());
             
             // Log de rotação
             auditLogger.logApiKeyRotation(merchantId, currentApiKey);
@@ -195,14 +196,14 @@ public class ApiKeyService {
     public void revokeApiKey(String merchantId, String apiKey) {
         try {
             String hashedKey = hashApiKey(apiKey);
-            ApiKey keyRecord = apiKeyRepository.findByKeyHash(hashedKey);
+            ApiKey keyRecord = apiKeyRepository.findByKeyHash(hashedKey).orElse(null);
             
-            if (keyRecord != null && keyRecord.getMerchantId().equals(merchantId)) {
-                keyRecord.setActive(false);
-                keyRecord.setRevokedAt(Instant.now());
+            if (keyRecord != null) {
+                keyRecord.setStatus(StatusApiKey.REVOKED);
+                keyRecord.setRotatedAt(toZonedDateTime(Instant.now()));
                 apiKeyRepository.save(keyRecord);
                 
-                auditLogger.logApiKeyRevocation(merchantId, apiKey);
+                auditLogger.logApiKeyRevocation(keyRecord.getLojista().getId().toString(), apiKey);
             }
             
         } catch (Exception e) {
@@ -259,8 +260,8 @@ public class ApiKeyService {
     }
     
     private boolean needsRotation(ApiKey apiKey) {
-        Instant rotationThreshold = Instant.now().minus(ROTATION_DAYS - 7, ChronoUnit.DAYS);
-        return apiKey.getCreatedAt().isBefore(rotationThreshold);
+        ZonedDateTime rotationThreshold = ZonedDateTime.now().minus(ROTATION_DAYS - 7, ChronoUnit.DAYS);
+        return apiKey.getCreatedAt() != null && apiKey.getCreatedAt().isBefore(rotationThreshold);
     }
     
     private void notifyRotationNeeded(String merchantId) {
@@ -269,6 +270,14 @@ public class ApiKeyService {
         
         // Em produção, enviar notificação real
         // notificationService.sendRotationNotification(merchantId);
+    }
+    
+    private ZonedDateTime toZonedDateTime(Instant instant) {
+        return instant.atZone(ZoneId.systemDefault());
+    }
+    
+    private Instant toInstant(ZonedDateTime zonedDateTime) {
+        return zonedDateTime.toInstant();
     }
 }
 

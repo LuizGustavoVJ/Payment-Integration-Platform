@@ -448,59 +448,23 @@ public class Webhook {
     public void setLastTestSuccess(Boolean lastTestSuccess) {
         this.lastTestSuccess = lastTestSuccess;
     }
+
+    // Método auxiliar para compatibilidade
+    public boolean isAtivo() {
+        return this.ativo != null && this.ativo;
+    }
+
+    // Método para retornar eventos como lista (para compatibilidade)
+    public java.util.List<EventoWebhook> getEventos() {
+        return java.util.Arrays.asList(this.evento);
+    }
 }
 
 /**
  * Enum para eventos de webhook
  */
-enum EventoWebhook {
-    PAYMENT_AUTHORIZED("payment.authorized", "Pagamento autorizado"),
-    PAYMENT_CAPTURED("payment.captured", "Pagamento capturado"),
-    PAYMENT_VOIDED("payment.voided", "Pagamento cancelado"),
-    PAYMENT_FAILED("payment.failed", "Pagamento falhou"),
-    PAYMENT_REFUNDED("payment.refunded", "Pagamento estornado"),
-    ALL("*", "Todos os eventos");
-
-    private final String code;
-    private final String description;
-
-    EventoWebhook(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para status do webhook
  */
-enum StatusWebhook {
-    ACTIVE("active", "Ativo"),
-    INACTIVE("inactive", "Inativo"),
-    PAUSED("paused", "Pausado"),
-    FAILED("failed", "Com falha");
-
-    private final String code;
-    private final String description;
-
-    StatusWebhook(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 

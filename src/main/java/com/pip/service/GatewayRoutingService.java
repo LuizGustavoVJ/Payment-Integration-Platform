@@ -3,6 +3,9 @@ package com.pip.service;
 import com.pip.model.Gateway;
 import com.pip.model.Lojista;
 import com.pip.model.LogTransacao;
+import com.pip.model.EventoLog;
+import com.pip.model.NivelLog;
+import com.pip.model.HealthStatus;
 import com.pip.repository.GatewayRepository;
 import com.pip.repository.LogTransacaoRepository;
 import org.slf4j.Logger;
@@ -190,8 +193,10 @@ public class GatewayRoutingService {
     private void registrarDecisaoRoteamento(Lojista lojista, Gateway gateway, Long valor, int gatewaysAvaliados) {
         LogTransacao log = new LogTransacao();
         log.setGateway(gateway);
-        log.setAcao("ROUTING_DECISION");
-        log.setStatusNovo("ROUTED");
+        log.setLojista(lojista);
+        log.setEvento(EventoLog.GATEWAY_SELECTION);
+        log.setNivel(NivelLog.INFO);
+        log.setMensagem("Gateway selecionado: " + gateway.getCodigo());
         log.setMetadata(String.format(
             "{\"lojista_id\":\"%s\",\"gateway_selecionado\":\"%s\",\"valor\":%d,\"gateways_avaliados\":%d,\"score\":%.2f}",
             lojista.getId(),
@@ -200,7 +205,7 @@ public class GatewayRoutingService {
             gatewaysAvaliados,
             calcularScore(gateway)
         ));
-        log.setCreatedAt(ZonedDateTime.now());
+        log.setTimestamp(ZonedDateTime.now());
 
         logTransacaoRepository.save(log);
     }

@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.Map;
+
 /**
  * DTO para requisição de autorização de pagamento
  * 
@@ -28,6 +30,14 @@ public class AuthorizationRequest {
     private String description;
 
     private Customer customer;
+    
+    private String softDescriptor;
+    
+    private Long serviceTaxAmount;
+    
+    private String solutionType;
+    
+    private Boolean saveCard = false;
 
     // Construtores
     public AuthorizationRequest() {}
@@ -94,6 +104,119 @@ public class AuthorizationRequest {
 
     public void setCustomer(Customer customer) {
         this.customer = customer;
+    }
+    
+    public String getSoftDescriptor() {
+        return softDescriptor;
+    }
+    
+    public void setSoftDescriptor(String softDescriptor) {
+        this.softDescriptor = softDescriptor;
+    }
+    
+    public Long getServiceTaxAmount() {
+        return serviceTaxAmount;
+    }
+    
+    public void setServiceTaxAmount(Long serviceTaxAmount) {
+        this.serviceTaxAmount = serviceTaxAmount;
+    }
+    
+    public String getSolutionType() {
+        return solutionType;
+    }
+    
+    public void setSolutionType(String solutionType) {
+        this.solutionType = solutionType;
+    }
+    
+    public Boolean getSaveCard() {
+        return saveCard;
+    }
+    
+    public void setSaveCard(Boolean saveCard) {
+        this.saveCard = saveCard;
+    }
+    
+    public String getCustomerName() {
+        return customer != null ? customer.getName() : null;
+    }
+    
+    public String getCustomerEmail() {
+        return customer != null ? customer.getEmail() : null;
+    }
+    
+    public String getCustomerDocument() {
+        return customer != null ? customer.getDocument() : null;
+    }
+    
+    // Campos adicionais para gateways específicos
+    private String externalAuthentication;
+    private String initiatedTransactionIndicator;
+    private String paymentMethod;
+    
+    public String getExternalAuthentication() {
+        return externalAuthentication;
+    }
+    
+    public void setExternalAuthentication(String externalAuthentication) {
+        this.externalAuthentication = externalAuthentication;
+    }
+    
+    public String getInitiatedTransactionIndicator() {
+        return initiatedTransactionIndicator;
+    }
+    
+    public void setInitiatedTransactionIndicator(String initiatedTransactionIndicator) {
+        this.initiatedTransactionIndicator = initiatedTransactionIndicator;
+    }
+    
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+    
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+    
+    // Campos adicionais para Rede
+    private String iata;
+    private Map<String, Object> threeDS;
+    
+    public String getIata() {
+        return iata;
+    }
+    
+    public void setIata(String iata) {
+        this.iata = iata;
+    }
+    
+    public Map<String, Object> getThreeDS() {
+        return threeDS;
+    }
+    
+    public void setThreeDS(Map<String, Object> threeDS) {
+        this.threeDS = threeDS;
+    }
+    
+    // Campos adicionais para Cielo e outros
+    private String cardBrand;
+    private String notificationUrl;
+    
+    public String getCardBrand() {
+        return cardBrand;
+    }
+    
+    public void setCardBrand(String cardBrand) {
+        this.cardBrand = cardBrand;
+    }
+    
+    public String getNotificationUrl() {
+        return notificationUrl;
+    }
+    
+    public void setNotificationUrl(String notificationUrl) {
+        this.notificationUrl = notificationUrl;
     }
 }
 

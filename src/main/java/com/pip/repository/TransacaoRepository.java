@@ -12,17 +12,18 @@ import java.util.UUID;
  * @author Luiz Gustavo Finotello
  */
 @Repository
-public interface TransacaoRepository extends JpaRepository<Transacao, UUID> {
+public interface TransacaoRepository extends JpaRepository<Transacao, UUID>, 
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<Transacao> {
     
     /**
      * Busca transação pelo ID da transação no gateway
      */
-    Transacao findByGatewayTransactionId(String gatewayTransactionId);
+    java.util.Optional<Transacao> findByGatewayTransactionId(String gatewayTransactionId);
     
     /**
      * Busca transação pelo ID da transação
      */
-    Transacao findByTransactionId(String transactionId);
+    java.util.Optional<Transacao> findByTransactionId(String transactionId);
     
     // Métodos customizados podem ser adicionados aqui conforme necessário
 }

@@ -1,0 +1,5 @@
+package com.pip.model;
+
+public enum EventoLog {
+    AUTHORIZATION, CAPTURE, VOID, REFUND, WEBHOOK, ERROR, GATEWAY_SELECTION, SYSTEM_ERROR
+}

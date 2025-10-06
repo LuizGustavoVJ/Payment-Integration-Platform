@@ -65,15 +65,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             // Buscar lojista
             Optional<Lojista> lojistaOpt = lojistaRepository.findByApiKey(apiKey);
             
-            if (lojistaOpt.isEmpty()) {
+            if (!lojistaOpt.isPresent()) {
                 // API Key inválida - deixar o controller tratar
                 return true;
             }
-
-            Lojista lojista = lojistaOpt.get();
+        
+        Lojista lojista = lojistaOpt.get();
             
             // Obter limite baseado no plano
-            int maxRequests = rateLimitService.getLimitByPlan(lojista.getPlano().name());
+            int maxRequests = rateLimitService.getLimitByPlan(lojista.getPlano().getCode());
             
             // Verificar rate limit
             boolean allowed = rateLimitService.isAllowed(apiKey, maxRequests);

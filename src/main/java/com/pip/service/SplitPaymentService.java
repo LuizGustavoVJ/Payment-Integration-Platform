@@ -131,7 +131,8 @@ public class SplitPaymentService {
     /**
      * Valida configuração de split
      */
-    private void validateSplit(SplitRequest splitRequest, Double totalAmount) {
+    private void validateSplit(SplitRequest splitRequest, Long totalAmount) {
+        Double totalAmountDouble = totalAmount != null ? totalAmount.doubleValue() : 0.0;
         if (splitRequest.getReceivers() == null || splitRequest.getReceivers().isEmpty()) {
             throw new IllegalArgumentException("Nenhum recebedor definido");
         }
@@ -151,7 +152,7 @@ public class SplitPaymentService {
         }
 
         // Validar se o total do split não excede o valor da transação
-        if ("FIXED".equals(splitRequest.getSplitType()) && totalSplit > totalAmount) {
+        if ("FIXED".equals(splitRequest.getSplitType()) && totalSplit > totalAmountDouble) {
             throw new IllegalArgumentException("Total do split excede o valor da transação");
         }
 
@@ -206,7 +207,7 @@ public class SplitPaymentService {
     /**
      * Calcula valor baseado no tipo de split
      */
-    private double calculateAmount(Double amount, Double totalAmount, String splitType) {
+    private double calculateAmount(Double amount, Long totalAmount, String splitType) {
         if ("PERCENTAGE".equals(splitType)) {
             return (totalAmount * amount) / 100.0;
         } else {

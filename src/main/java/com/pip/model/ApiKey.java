@@ -329,49 +329,8 @@ public class ApiKey {
 /**
  * Enum para ambiente da API Key
  */
-enum AmbienteApiKey {
-    SANDBOX("sandbox", "Ambiente de testes"),
-    PRODUCTION("production", "Ambiente de produção");
-
-    private final String code;
-    private final String description;
-
-    AmbienteApiKey(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
 /**
  * Enum para status da API Key
  */
-enum StatusApiKey {
-    ACTIVE("active", "Ativa"),
-    SUSPENDED("suspended", "Suspensa"),
-    REVOKED("revoked", "Revogada");
-
-    private final String code;
-    private final String description;
-
-    StatusApiKey(String code, String description) {
-        this.code = code;
-        this.description = description;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-}
 
