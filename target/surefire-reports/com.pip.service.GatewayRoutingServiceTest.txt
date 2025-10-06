@@ -1,0 +1,25 @@
+-------------------------------------------------------------------------------
+Test set: com.pip.service.GatewayRoutingServiceTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 1, Errors: 1, Skipped: 0, Time elapsed: 0.324 s <<< FAILURE! -- in com.pip.service.GatewayRoutingServiceTest
+com.pip.service.GatewayRoutingServiceTest.testSelecionarMelhorGateway_ComGatewaysDisponiveis -- Time elapsed: 0.006 s <<< ERROR!
+java.lang.RuntimeException: Nenhum gateway disponível para processar a transação
+	at com.pip.service.GatewayRoutingService.selecionarMelhorGateway(GatewayRoutingService.java:59)
+	at com.pip.service.GatewayRoutingServiceTest.testSelecionarMelhorGateway_ComGatewaysDisponiveis(GatewayRoutingServiceTest.java:88)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.pip.service.GatewayRoutingServiceTest.testSelecionarGatewayFallback -- Time elapsed: 0.005 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: not <null>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertNotNull.failNull(AssertNotNull.java:49)
+	at org.junit.jupiter.api.AssertNotNull.assertNotNull(AssertNotNull.java:35)
+	at org.junit.jupiter.api.AssertNotNull.assertNotNull(AssertNotNull.java:30)
+	at org.junit.jupiter.api.Assertions.assertNotNull(Assertions.java:304)
+	at com.pip.service.GatewayRoutingServiceTest.testSelecionarGatewayFallback(GatewayRoutingServiceTest.java:117)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

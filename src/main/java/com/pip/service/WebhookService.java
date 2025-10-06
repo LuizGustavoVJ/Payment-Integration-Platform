@@ -294,7 +294,7 @@ public class WebhookService {
     /**
      * Gera assinatura HMAC-SHA256 do payload
      */
-    private String gerarAssinatura(String payload, String secret) {
+    String gerarAssinatura(String payload, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             SecretKeySpec secretKeySpec = new SecretKeySpec(

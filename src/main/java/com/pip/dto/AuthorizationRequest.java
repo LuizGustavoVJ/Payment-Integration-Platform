@@ -38,6 +38,8 @@ public class AuthorizationRequest {
     private String solutionType;
     
     private Boolean saveCard = false;
+    
+    private String cvv;
 
     // Construtores
     public AuthorizationRequest() {}
@@ -218,5 +220,12 @@ public class AuthorizationRequest {
     public void setNotificationUrl(String notificationUrl) {
         this.notificationUrl = notificationUrl;
     }
+    
+    public String getCvv() {
+        return cvv;
+    }
+    
+    public void setCvv(String cvv) {
+        this.cvv = cvv;
+    }
 }
-

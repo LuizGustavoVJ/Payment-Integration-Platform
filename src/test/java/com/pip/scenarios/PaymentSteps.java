@@ -83,7 +83,7 @@ public class PaymentSteps {
         pagamentoAutorizado();
 
         CaptureRequest captureRequest = new CaptureRequest();
-        captureRequest.setAmount(10000L);
+        captureRequest.setAmount(java.math.BigDecimal.valueOf(10000L));
 
         given()
                 .header("X-API-Key", apiKey)
@@ -123,7 +123,7 @@ public class PaymentSteps {
     @Quando("eu envio uma requisição de captura")
     public void capturarPagamento() {
         CaptureRequest captureRequest = new CaptureRequest();
-        captureRequest.setAmount(10000L);
+        captureRequest.setAmount(java.math.BigDecimal.valueOf(10000L));
 
         response = request
                 .body(captureRequest)

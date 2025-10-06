@@ -1,0 +1,47 @@
+-------------------------------------------------------------------------------
+Test set: com.pip.service.RateLimitServiceTest
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 2.211 s <<< FAILURE! -- in com.pip.service.RateLimitServiceTest
+com.pip.service.RateLimitServiceTest.testIsAllowed_ExceedsLimit -- Time elapsed: 2.078 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <false> but was: <true>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertFalse.failNotFalse(AssertFalse.java:63)
+	at org.junit.jupiter.api.AssertFalse.assertFalse(AssertFalse.java:36)
+	at org.junit.jupiter.api.AssertFalse.assertFalse(AssertFalse.java:31)
+	at org.junit.jupiter.api.Assertions.assertFalse(Assertions.java:231)
+	at com.pip.service.RateLimitServiceTest.testIsAllowed_ExceedsLimit(RateLimitServiceTest.java:92)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.pip.service.RateLimitServiceTest.testIsAllowed_FirstRequest -- Time elapsed: 0.041 s <<< FAILURE!
+Wanted but not invoked:
+valueOperations.get(<any string>);
+-> at com.pip.service.RateLimitServiceTest.testIsAllowed_FirstRequest(RateLimitServiceTest.java:63)
+
+However, there was exactly 1 interaction with this mock:
+valueOperations.increment(
+    "rate_limit:test-api-key"
+);
+-> at com.pip.service.RateLimitService.isAllowed(RateLimitService.java:48)
+
+
+	at com.pip.service.RateLimitServiceTest.testIsAllowed_FirstRequest(RateLimitServiceTest.java:63)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.pip.service.RateLimitServiceTest.testGetResetTime_NoExpiration -- Time elapsed: 0.004 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <60> but was: <0>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:166)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:161)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:632)
+	at com.pip.service.RateLimitServiceTest.testGetResetTime_NoExpiration(RateLimitServiceTest.java:151)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

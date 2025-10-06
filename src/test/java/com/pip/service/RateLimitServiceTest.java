@@ -35,7 +35,15 @@ class RateLimitServiceTest {
         MockitoAnnotations.openMocks(this);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         
-        rateLimitService = new RateLimitService(redisTemplate);
+        rateLimitService = new RateLimitService();
+        // Inject mocked RedisTemplate using reflection
+        try {
+            java.lang.reflect.Field field = RateLimitService.class.getDeclaredField("redisTemplate");
+            field.setAccessible(true);
+            field.set(rateLimitService, redisTemplate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -46,10 +54,10 @@ class RateLimitServiceTest {
 
         // Criar lojista com plano FREE (100 req/min)
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar se primeira requisição é permitida
-        assertTrue(rateLimitService.isAllowed(lojista));
+        assertTrue(rateLimitService.isAllowed("test-api-key", 100));
 
         // Verificar se Redis foi chamado
         verify(valueOperations).get(anyString());
@@ -65,10 +73,10 @@ class RateLimitServiceTest {
 
         // Criar lojista com plano FREE (100 req/min)
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar se requisição é permitida
-        assertTrue(rateLimitService.isAllowed(lojista));
+        assertTrue(rateLimitService.isAllowed("test-api-key", 100));
     }
 
     @Test
@@ -78,10 +86,10 @@ class RateLimitServiceTest {
 
         // Criar lojista com plano FREE (100 req/min)
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar se requisição é bloqueada
-        assertFalse(rateLimitService.isAllowed(lojista));
+        assertFalse(rateLimitService.isAllowed("test-api-key", 100));
 
         // Verificar que increment não foi chamado
         verify(valueOperations, never()).increment(anyString());
@@ -94,10 +102,10 @@ class RateLimitServiceTest {
 
         // Criar lojista com plano FREE (100 req/min)
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar requisições restantes
-        long remaining = rateLimitService.getRemainingRequests(lojista);
+        long remaining = rateLimitService.getRemainingRequests("test-api-key", 100);
         assertEquals(70L, remaining);
     }
 
@@ -108,10 +116,10 @@ class RateLimitServiceTest {
 
         // Criar lojista com plano FREE (100 req/min)
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar requisições restantes
-        long remaining = rateLimitService.getRemainingRequests(lojista);
+        long remaining = rateLimitService.getRemainingRequests("test-api-key", 100);
         assertEquals(100L, remaining);
     }
 
@@ -122,10 +130,10 @@ class RateLimitServiceTest {
 
         // Criar lojista
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar tempo de reset
-        long resetTime = rateLimitService.getResetTime(lojista);
+        long resetTime = rateLimitService.getResetTime("test-api-key");
         assertEquals(30L, resetTime);
     }
 
@@ -136,10 +144,10 @@ class RateLimitServiceTest {
 
         // Criar lojista
         Lojista lojista = new Lojista();
-        lojista.setPlano(PlanoLojista.FREE);
+        lojista.setPlano(PlanoLojista.STARTER);
 
         // Verificar tempo de reset (deve retornar 60 segundos por padrão)
-        long resetTime = rateLimitService.getResetTime(lojista);
+        long resetTime = rateLimitService.getResetTime("test-api-key");
         assertEquals(60L, resetTime);
     }
 
@@ -150,18 +158,12 @@ class RateLimitServiceTest {
         when(valueOperations.increment(anyString())).thenReturn(1L);
 
         // Testar plano STARTER (500 req/min)
-        Lojista lojistaStarter = new Lojista();
-        lojistaStarter.setPlano(PlanoLojista.STARTER);
-        assertTrue(rateLimitService.isAllowed(lojistaStarter));
+        assertTrue(rateLimitService.isAllowed("test-api-key-starter", 500));
 
         // Testar plano BUSINESS (2000 req/min)
-        Lojista lojistaBusiness = new Lojista();
-        lojistaBusiness.setPlano(PlanoLojista.BUSINESS);
-        assertTrue(rateLimitService.isAllowed(lojistaBusiness));
+        assertTrue(rateLimitService.isAllowed("test-api-key-business", 2000));
 
         // Testar plano ENTERPRISE (10000 req/min)
-        Lojista lojistaEnterprise = new Lojista();
-        lojistaEnterprise.setPlano(PlanoLojista.ENTERPRISE);
-        assertTrue(rateLimitService.isAllowed(lojistaEnterprise));
+        assertTrue(rateLimitService.isAllowed("test-api-key-enterprise", 10000));
     }
 }

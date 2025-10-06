@@ -60,6 +60,7 @@ class GatewayRoutingServiceTest {
         gateway1.setTempoRespostaMedio(1000L);
         gateway1.setLimiteDiario(10000000L);
         gateway1.setVolumeProcessadoHoje(0L);
+        gateway1.setApiKey("test-api-key-1");
         gateway1.ativar();
 
         gateway2 = new Gateway();
@@ -73,6 +74,7 @@ class GatewayRoutingServiceTest {
         gateway2.setTempoRespostaMedio(2000L);
         gateway2.setLimiteDiario(5000000L);
         gateway2.setVolumeProcessadoHoje(0L);
+        gateway2.setApiKey("test-api-key-2");
         gateway2.ativar();
     }
 
