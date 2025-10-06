@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InstallmentService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">InstallmentService.java</span></div><h1>InstallmentService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.model.Gateway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Serviço de Parcelamento Inteligente
+ * 
+ * Calcula opções de parcelamento com ou sem juros
+ * Integrado com Mercado Pago e outros gateways
+ * 
+ * Funcionalidades:
+ * - Cálculo de parcelas com juros
+ * - Parcelamento sem juros
+ * - Taxas por bandeira
+ * - Valor mínimo por parcela
+ * - Recomendação de melhor opção
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L32">public class InstallmentService {</span>
+
+<span class="nc" id="L34">    private static final Logger logger = LoggerFactory.getLogger(InstallmentService.class);</span>
+<span class="nc" id="L35">    private static final Double MIN_INSTALLMENT_VALUE = 5.0; // R$ 5,00 mínimo por parcela</span>
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    /**
+     * Calcula opções de parcelamento disponíveis
+     * 
+     * @param gateway Gateway de pagamento
+     * @param amount Valor total
+     * @param maxInstallments Número máximo de parcelas
+     * @param interestFree Parcelas sem juros
+     * @return Lista de opções de parcelamento
+     */
+    public List&lt;InstallmentOption&gt; calculateInstallments(
+            Gateway gateway,
+            Double amount,
+            Integer maxInstallments,
+            Integer interestFree) {
+
+<span class="nc" id="L55">        logger.info(&quot;[PARCELAMENTO] Calculando opções - Valor: R$ {} - Max: {}x - Sem juros: {}x&quot;,</span>
+            amount, maxInstallments, interestFree);
+
+<span class="nc" id="L58">        List&lt;InstallmentOption&gt; options = new ArrayList&lt;&gt;();</span>
+
+        // Validar parâmetros
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        if (maxInstallments == null || maxInstallments &lt; 1) {</span>
+<span class="nc" id="L62">            maxInstallments = 12; // Padrão 12x</span>
+        }
+
+<span class="nc bnc" id="L65" title="All 4 branches missed.">        if (interestFree == null || interestFree &lt; 0) {</span>
+<span class="nc" id="L66">            interestFree = 0; // Sem parcelas sem juros por padrão</span>
+        }
+
+        // Calcular opções
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        for (int i = 1; i &lt;= maxInstallments; i++) {</span>
+            Double installmentValue;
+            Double totalAmount;
+<span class="nc" id="L73">            Double interestRate = 0.0;</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if (i &lt;= interestFree) {</span>
+                // Sem juros
+<span class="nc" id="L77">                installmentValue = amount / i;</span>
+<span class="nc" id="L78">                totalAmount = amount;</span>
+            } else {
+                // Com juros (taxa média de 2.99% ao mês)
+<span class="nc" id="L81">                interestRate = 2.99;</span>
+<span class="nc" id="L82">                totalAmount = calculateTotalWithInterest(amount, i, interestRate);</span>
+<span class="nc" id="L83">                installmentValue = totalAmount / i;</span>
+            }
+
+            // Verificar valor mínimo por parcela
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (installmentValue &lt; MIN_INSTALLMENT_VALUE) {</span>
+<span class="nc" id="L88">                logger.debug(&quot;[PARCELAMENTO] Parcela {}x abaixo do mínimo: R$ {}&quot;, i, installmentValue);</span>
+<span class="nc" id="L89">                break;</span>
+            }
+
+<span class="nc" id="L92">            InstallmentOption option = new InstallmentOption();</span>
+<span class="nc" id="L93">            option.setInstallments(i);</span>
+<span class="nc" id="L94">            option.setInstallmentValue(installmentValue);</span>
+<span class="nc" id="L95">            option.setTotalAmount(totalAmount);</span>
+<span class="nc" id="L96">            option.setInterestRate(interestRate);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            option.setInterestFree(i &lt;= interestFree);</span>
+<span class="nc bnc" id="L98" title="All 6 branches missed.">            option.setRecommended(i == interestFree || (interestFree == 0 &amp;&amp; i == 1));</span>
+
+<span class="nc" id="L100">            options.add(option);</span>
+        }
+
+<span class="nc" id="L103">        logger.info(&quot;[PARCELAMENTO] {} opções calculadas&quot;, options.size());</span>
+<span class="nc" id="L104">        return options;</span>
+    }
+
+    /**
+     * Calcula valor total com juros compostos
+     */
+    private Double calculateTotalWithInterest(Double amount, Integer installments, Double monthlyRate) {
+<span class="nc" id="L111">        double rate = monthlyRate / 100.0;</span>
+<span class="nc" id="L112">        double factor = Math.pow(1 + rate, installments);</span>
+<span class="nc" id="L113">        return amount * factor;</span>
+    }
+
+    /**
+     * Busca opções de parcelamento do Mercado Pago
+     * 
+     * @param gateway Gateway Mercado Pago
+     * @param amount Valor
+     * @param paymentMethodId Método de pagamento
+     * @return Opções de parcelamento
+     */
+    public List&lt;InstallmentOption&gt; getMercadoPagoInstallments(
+            Gateway gateway,
+            Double amount,
+            String paymentMethodId) {
+
+<span class="nc" id="L129">        logger.info(&quot;[PARCELAMENTO] Buscando opções Mercado Pago - Valor: R$ {}&quot;, amount);</span>
+
+        try {
+<span class="nc" id="L132">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L133">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+
+<span class="nc" id="L135">            String url = String.format(</span>
+                &quot;%s/v1/payment_methods/installments?amount=%.2f&amp;payment_method_id=%s&quot;,
+<span class="nc" id="L137">                gateway.getApiUrl(),</span>
+                amount,
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                paymentMethodId != null ? paymentMethodId : &quot;credit_card&quot;</span>
+            );
+
+<span class="nc" id="L142">            HttpEntity&lt;Void&gt; entity = new HttpEntity&lt;&gt;(headers);</span>
+
+<span class="nc" id="L144">            ResponseEntity&lt;List&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.GET,
+                entity,
+                List.class
+            );
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            if (response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L152">                List&lt;Map&lt;String, Object&gt;&gt; mpOptions = response.getBody();</span>
+<span class="nc" id="L153">                return convertMercadoPagoOptions(mpOptions);</span>
+            }
+
+<span class="nc" id="L156">        } catch (Exception e) {</span>
+<span class="nc" id="L157">            logger.error(&quot;[PARCELAMENTO] Erro ao buscar opções Mercado Pago&quot;, e);</span>
+<span class="nc" id="L158">        }</span>
+
+        // Fallback: calcular localmente
+<span class="nc" id="L161">        return calculateInstallments(gateway, amount, 12, 3);</span>
+    }
+
+    /**
+     * Converte opções do Mercado Pago para formato padrão
+     */
+    private List&lt;InstallmentOption&gt; convertMercadoPagoOptions(List&lt;Map&lt;String, Object&gt;&gt; mpOptions) {
+<span class="nc" id="L168">        List&lt;InstallmentOption&gt; options = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L170" title="All 4 branches missed.">        if (mpOptions != null &amp;&amp; !mpOptions.isEmpty()) {</span>
+<span class="nc" id="L171">            Map&lt;String, Object&gt; payerCosts = mpOptions.get(0);</span>
+<span class="nc" id="L172">            List&lt;Map&lt;String, Object&gt;&gt; installments = (List&lt;Map&lt;String, Object&gt;&gt;) payerCosts.get(&quot;payer_costs&quot;);</span>
+
+<span class="nc bnc" id="L174" title="All 2 branches missed.">            for (Map&lt;String, Object&gt; inst : installments) {</span>
+<span class="nc" id="L175">                InstallmentOption option = new InstallmentOption();</span>
+<span class="nc" id="L176">                option.setInstallments((Integer) inst.get(&quot;installments&quot;));</span>
+<span class="nc" id="L177">                option.setInstallmentValue((Double) inst.get(&quot;installment_amount&quot;));</span>
+<span class="nc" id="L178">                option.setTotalAmount((Double) inst.get(&quot;total_amount&quot;));</span>
+<span class="nc" id="L179">                option.setInterestRate((Double) inst.get(&quot;installment_rate&quot;));</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                option.setInterestFree((Double) inst.get(&quot;installment_rate&quot;) == 0.0);</span>
+<span class="nc" id="L181">                option.setRecommended((Boolean) inst.get(&quot;recommended&quot;));</span>
+
+<span class="nc" id="L183">                options.add(option);</span>
+<span class="nc" id="L184">            }</span>
+        }
+
+<span class="nc" id="L187">        return options;</span>
+    }
+
+    /**
+     * Classe para opção de parcelamento
+     */
+<span class="nc" id="L193">    public static class InstallmentOption {</span>
+        private Integer installments;
+        private Double installmentValue;
+        private Double totalAmount;
+        private Double interestRate;
+        private Boolean interestFree;
+        private Boolean recommended;
+
+        // Getters e Setters
+<span class="nc" id="L202">        public Integer getInstallments() { return installments; }</span>
+<span class="nc" id="L203">        public void setInstallments(Integer installments) { this.installments = installments; }</span>
+
+<span class="nc" id="L205">        public Double getInstallmentValue() { return installmentValue; }</span>
+<span class="nc" id="L206">        public void setInstallmentValue(Double installmentValue) { this.installmentValue = installmentValue; }</span>
+
+<span class="nc" id="L208">        public Double getTotalAmount() { return totalAmount; }</span>
+<span class="nc" id="L209">        public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }</span>
+
+<span class="nc" id="L211">        public Double getInterestRate() { return interestRate; }</span>
+<span class="nc" id="L212">        public void setInterestRate(Double interestRate) { this.interestRate = interestRate; }</span>
+
+<span class="nc" id="L214">        public Boolean getInterestFree() { return interestFree; }</span>
+<span class="nc" id="L215">        public void setInterestFree(Boolean interestFree) { this.interestFree = interestFree; }</span>
+
+<span class="nc" id="L217">        public Boolean getRecommended() { return recommended; }</span>
+<span class="nc" id="L218">        public void setRecommended(Boolean recommended) { this.recommended = recommended; }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

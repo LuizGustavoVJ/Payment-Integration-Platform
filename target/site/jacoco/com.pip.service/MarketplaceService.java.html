@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MarketplaceService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">MarketplaceService.java</span></div><h1>MarketplaceService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.dto.Customer;
+import com.pip.dto.AuthorizationRequest;
+import com.pip.model.Gateway;
+import com.pip.model.Transacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Serviço de Marketplace do Mercado Pago
+ * 
+ * Permite criar e gerenciar marketplaces com múltiplos vendedores
+ * 
+ * Funcionalidades:
+ * - Criação de sub-contas de vendedores
+ * - Split automático de pagamentos
+ * - Gestão de comissões
+ * - Repasse automático
+ * - Relatórios por vendedor
+ * 
+ * Documentação: https://www.mercadopago.com.br/developers/pt/docs/mp-point/integration-configuration/integrate-with-marketplace
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L36">public class MarketplaceService {</span>
+
+<span class="nc" id="L38">    private static final Logger logger = LoggerFactory.getLogger(MarketplaceService.class);</span>
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    /**
+     * Cria pagamento com split para marketplace
+     * 
+     * @param gateway Gateway Mercado Pago
+     * @param request Requisição de autorização
+     * @param transacao Transação
+     * @param sellerId ID do vendedor
+     * @param marketplaceFee Taxa do marketplace (percentual)
+     * @return Resultado do processamento
+     */
+    public Map&lt;String, Object&gt; createMarketplacePayment(
+            Gateway gateway,
+            AuthorizationRequest request,
+            Transacao transacao,
+            String sellerId,
+            Double marketplaceFee) {
+
+<span class="nc" id="L60">        logger.info(&quot;[MARKETPLACE] Criando pagamento - Seller: {} - Fee: {}%&quot;, </span>
+            sellerId, marketplaceFee);
+
+        try {
+            // Validar parâmetros
+<span class="nc bnc" id="L65" title="All 4 branches missed.">            if (sellerId == null || sellerId.isEmpty()) {</span>
+<span class="nc" id="L66">                throw new IllegalArgumentException(&quot;Seller ID obrigatório&quot;);</span>
+            }
+
+<span class="nc bnc" id="L69" title="All 6 branches missed.">            if (marketplaceFee == null || marketplaceFee &lt; 0 || marketplaceFee &gt; 100) {</span>
+<span class="nc" id="L70">                throw new IllegalArgumentException(&quot;Taxa do marketplace inválida&quot;);</span>
+            }
+
+            // Construir payload
+<span class="nc" id="L74">            Map&lt;String, Object&gt; payload = buildMarketplacePayload(</span>
+                request, transacao, sellerId, marketplaceFee
+            );
+
+            // Configurar headers
+<span class="nc" id="L79">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L80">            headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L81">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+<span class="nc" id="L82">            headers.set(&quot;X-Idempotency-Key&quot;, transacao.getTransactionId());</span>
+
+            // Fazer requisição
+<span class="nc" id="L85">            String url = gateway.getApiUrl() + &quot;/v1/payments&quot;;</span>
+<span class="nc" id="L86">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+
+<span class="nc" id="L88">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L95" title="All 4 branches missed.">            if (response.getStatusCode() == HttpStatus.CREATED || response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L96">                logger.info(&quot;[MARKETPLACE] Pagamento criado com sucesso&quot;);</span>
+<span class="nc" id="L97">                return response.getBody();</span>
+            } else {
+<span class="nc" id="L99">                throw new RuntimeException(&quot;Falha ao criar pagamento marketplace&quot;);</span>
+            }
+
+<span class="nc" id="L102">        } catch (Exception e) {</span>
+<span class="nc" id="L103">            logger.error(&quot;[MARKETPLACE] Erro ao criar pagamento&quot;, e);</span>
+<span class="nc" id="L104">            throw new RuntimeException(&quot;Erro no marketplace&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Constrói payload para pagamento marketplace
+     */
+    private Map&lt;String, Object&gt; buildMarketplacePayload(
+            AuthorizationRequest request,
+            Transacao transacao,
+            String sellerId,
+            Double marketplaceFee) {
+
+<span class="nc" id="L117">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+
+        // Dados básicos
+<span class="nc" id="L120">        payload.put(&quot;transaction_amount&quot;, request.getAmount());</span>
+<span class="nc" id="L121">        payload.put(&quot;token&quot;, request.getCardToken());</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        payload.put(&quot;installments&quot;, request.getInstallments() != null ? request.getInstallments() : 1);</span>
+<span class="nc" id="L123">        payload.put(&quot;payment_method_id&quot;, &quot;credit_card&quot;);</span>
+<span class="nc" id="L124">        payload.put(&quot;description&quot;, &quot;Pagamento via PIP Marketplace&quot;);</span>
+
+        // Dados do pagador
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (request.getCustomer() != null) {</span>
+<span class="nc" id="L128">            Map&lt;String, Object&gt; payer = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L129">            payer.put(&quot;email&quot;, request.getCustomer().getEmail());</span>
+<span class="nc" id="L130">            payer.put(&quot;identification&quot;, Map.of(</span>
+                &quot;type&quot;, &quot;CPF&quot;,
+<span class="nc" id="L132">                &quot;number&quot;, request.getCustomer().getDocument()</span>
+            ));
+<span class="nc" id="L134">            payload.put(&quot;payer&quot;, payer);</span>
+        }
+
+        // Configuração de marketplace
+<span class="nc" id="L138">        payload.put(&quot;marketplace&quot;, &quot;PIP&quot;);</span>
+<span class="nc" id="L139">        payload.put(&quot;marketplace_fee&quot;, calculateMarketplaceFee(request.getAmount().doubleValue(), marketplaceFee));</span>
+
+        // Dados do vendedor (collector)
+<span class="nc" id="L142">        payload.put(&quot;collector_id&quot;, sellerId);</span>
+
+        // Metadados
+<span class="nc" id="L145">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L146">        metadata.put(&quot;pip_transaction_id&quot;, transacao.getTransactionId());</span>
+<span class="nc" id="L147">        metadata.put(&quot;seller_id&quot;, sellerId);</span>
+<span class="nc" id="L148">        metadata.put(&quot;marketplace_fee_percent&quot;, marketplaceFee);</span>
+<span class="nc" id="L149">        payload.put(&quot;metadata&quot;, metadata);</span>
+
+<span class="nc" id="L151">        return payload;</span>
+    }
+
+    /**
+     * Calcula taxa do marketplace
+     */
+    private double calculateMarketplaceFee(Double amount, Double feePercent) {
+<span class="nc" id="L158">        return (amount * feePercent) / 100.0;</span>
+    }
+
+    /**
+     * Cria sub-conta de vendedor no marketplace
+     * 
+     * @param gateway Gateway Mercado Pago
+     * @param sellerData Dados do vendedor
+     * @return ID do vendedor criado
+     */
+    public String createSeller(Gateway gateway, Map&lt;String, Object&gt; sellerData) {
+<span class="nc" id="L169">        logger.info(&quot;[MARKETPLACE] Criando vendedor: {}&quot;, sellerData.get(&quot;email&quot;));</span>
+
+        try {
+<span class="nc" id="L172">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L173">            headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L174">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+
+<span class="nc" id="L176">            String url = gateway.getApiUrl() + &quot;/v1/marketplace/sellers&quot;;</span>
+<span class="nc" id="L177">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(sellerData, headers);</span>
+
+<span class="nc" id="L179">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            if (response.getStatusCode() == HttpStatus.CREATED) {</span>
+<span class="nc" id="L187">                Map&lt;String, Object&gt; responseBody = response.getBody();</span>
+<span class="nc" id="L188">                String sellerId = (String) responseBody.get(&quot;id&quot;);</span>
+<span class="nc" id="L189">                logger.info(&quot;[MARKETPLACE] Vendedor criado: {}&quot;, sellerId);</span>
+<span class="nc" id="L190">                return sellerId;</span>
+            } else {
+<span class="nc" id="L192">                throw new RuntimeException(&quot;Falha ao criar vendedor&quot;);</span>
+            }
+
+<span class="nc" id="L195">        } catch (Exception e) {</span>
+<span class="nc" id="L196">            logger.error(&quot;[MARKETPLACE] Erro ao criar vendedor&quot;, e);</span>
+<span class="nc" id="L197">            throw new RuntimeException(&quot;Erro ao criar vendedor&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Lista transações de um vendedor
+     * 
+     * @param gateway Gateway Mercado Pago
+     * @param sellerId ID do vendedor
+     * @return Lista de transações
+     */
+    public List&lt;Map&lt;String, Object&gt;&gt; getSellerTransactions(Gateway gateway, String sellerId) {
+<span class="nc" id="L209">        logger.info(&quot;[MARKETPLACE] Listando transações do vendedor: {}&quot;, sellerId);</span>
+
+        try {
+<span class="nc" id="L212">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L213">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+
+<span class="nc" id="L215">            String url = gateway.getApiUrl() + &quot;/v1/payments/search?collector_id=&quot; + sellerId;</span>
+<span class="nc" id="L216">            HttpEntity&lt;Void&gt; entity = new HttpEntity&lt;&gt;(headers);</span>
+
+<span class="nc" id="L218">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.GET,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            if (response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L226">                Map&lt;String, Object&gt; responseBody = response.getBody();</span>
+<span class="nc" id="L227">                return (List&lt;Map&lt;String, Object&gt;&gt;) responseBody.get(&quot;results&quot;);</span>
+            } else {
+<span class="nc" id="L229">                throw new RuntimeException(&quot;Falha ao listar transações&quot;);</span>
+            }
+
+<span class="nc" id="L232">        } catch (Exception e) {</span>
+<span class="nc" id="L233">            logger.error(&quot;[MARKETPLACE] Erro ao listar transações&quot;, e);</span>
+<span class="nc" id="L234">            return new ArrayList&lt;&gt;();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

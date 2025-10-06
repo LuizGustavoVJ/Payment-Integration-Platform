@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookMessage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">WebhookMessage.java</span></div><h1>WebhookMessage.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+/**
+ * DTO para mensagens de webhook na fila RabbitMQ
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+public class WebhookMessage implements Serializable {
+
+    private UUID webhookEventId;
+    private int attemptNumber;
+
+<span class="nc" id="L16">    public WebhookMessage() {</span>
+<span class="nc" id="L17">    }</span>
+
+<span class="nc" id="L19">    public WebhookMessage(UUID webhookEventId, int attemptNumber) {</span>
+<span class="nc" id="L20">        this.webhookEventId = webhookEventId;</span>
+<span class="nc" id="L21">        this.attemptNumber = attemptNumber;</span>
+<span class="nc" id="L22">    }</span>
+
+    public UUID getWebhookEventId() {
+<span class="nc" id="L25">        return webhookEventId;</span>
+    }
+
+    public void setWebhookEventId(UUID webhookEventId) {
+<span class="nc" id="L29">        this.webhookEventId = webhookEventId;</span>
+<span class="nc" id="L30">    }</span>
+
+    public int getAttemptNumber() {
+<span class="nc" id="L33">        return attemptNumber;</span>
+    }
+
+    public void setAttemptNumber(int attemptNumber) {
+<span class="nc" id="L37">        this.attemptNumber = attemptNumber;</span>
+<span class="nc" id="L38">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L42">        return &quot;WebhookMessage{&quot; +</span>
+                &quot;webhookEventId=&quot; + webhookEventId +
+                &quot;, attemptNumber=&quot; + attemptNumber +
+                '}';
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagSeguroWebhookController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.controller</a> &gt; <span class="el_source">PagSeguroWebhookController.java</span></div><h1>PagSeguroWebhookController.java</h1><pre class="source lang-java linenums">package com.pip.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.model.Transacao;
+import com.pip.model.TransactionStatus;
+import com.pip.repository.TransacaoRepository;
+import com.pip.service.WebhookService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Controller para receber webhooks do PagSeguro
+ * 
+ * Documentação: https://developers.international.pagseguro.com/docs/webhooks
+ * 
+ * Eventos suportados:
+ * - CHARGE.PAID - Pagamento confirmado
+ * - CHARGE.DECLINED - Pagamento negado
+ * - CHARGE.CANCELED - Pagamento cancelado
+ * - CHARGE.REFUNDED - Pagamento estornado
+ * 
+ * Segurança:
+ * - Validação de assinatura HMAC-SHA256
+ * - Token de autenticação
+ * - Idempotência
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@RestController
+@RequestMapping(&quot;/webhooks/pagseguro&quot;)
+<span class="nc" id="L41">public class PagSeguroWebhookController {</span>
+
+<span class="nc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(PagSeguroWebhookController.class);</span>
+
+    @Autowired
+    private TransacaoRepository transacaoRepository;
+
+    @Autowired
+    private WebhookService webhookService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @PostMapping
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; receiveWebhook(
+            @RequestHeader(value = &quot;X-PagSeguro-Signature&quot;, required = false) String signature,
+            @RequestBody String payload) {
+
+<span class="nc" id="L59">        logger.info(&quot;[PAGSEGURO WEBHOOK] Recebendo notificação&quot;);</span>
+
+        try {
+            // Validar assinatura
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (!validateSignature(signature, payload)) {</span>
+<span class="nc" id="L64">                logger.warn(&quot;[PAGSEGURO WEBHOOK] Assinatura inválida&quot;);</span>
+<span class="nc" id="L65">                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="nc" id="L66">                    .body(Map.of(&quot;error&quot;, &quot;Invalid signature&quot;));</span>
+            }
+
+            // Parse do payload
+<span class="nc" id="L70">            Map&lt;String, Object&gt; webhookData = objectMapper.readValue(payload, Map.class);</span>
+<span class="nc" id="L71">            String eventType = (String) webhookData.get(&quot;event&quot;);</span>
+<span class="nc" id="L72">            Map&lt;String, Object&gt; chargeData = (Map&lt;String, Object&gt;) webhookData.get(&quot;data&quot;);</span>
+
+<span class="nc" id="L74">            logger.info(&quot;[PAGSEGURO WEBHOOK] Evento: {} - ChargeID: {}&quot;, </span>
+<span class="nc" id="L75">                eventType, chargeData.get(&quot;id&quot;));</span>
+
+            // Processar evento
+<span class="nc" id="L78">            processPagSeguroEvent(eventType, chargeData);</span>
+
+<span class="nc" id="L80">            return ResponseEntity.ok(Map.of(&quot;status&quot;, &quot;processed&quot;));</span>
+
+<span class="nc" id="L82">        } catch (Exception e) {</span>
+<span class="nc" id="L83">            logger.error(&quot;[PAGSEGURO WEBHOOK] Erro ao processar webhook&quot;, e);</span>
+<span class="nc" id="L84">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L85">                .body(Map.of(&quot;error&quot;, &quot;Processing failed&quot;));</span>
+        }
+    }
+
+    private void processPagSeguroEvent(String eventType, Map&lt;String, Object&gt; chargeData) {
+<span class="nc" id="L90">        String chargeId = (String) chargeData.get(&quot;id&quot;);</span>
+        
+<span class="nc" id="L92">        Optional&lt;Transacao&gt; transacaoOpt = transacaoRepository.findByGatewayTransactionId(chargeId);</span>
+        
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (!transacaoOpt.isPresent()) {</span>
+<span class="nc" id="L95">            logger.warn(&quot;[PAGSEGURO WEBHOOK] Transação não encontrada: {}&quot;, chargeId);</span>
+<span class="nc" id="L96">            return;</span>
+        }
+        
+<span class="nc" id="L99">        Transacao transacao = transacaoOpt.get();</span>
+
+<span class="nc bnc" id="L101" title="All 4 branches missed.">        switch (eventType) {</span>
+            case &quot;CHARGE.PAID&quot;:
+<span class="nc" id="L103">                transacao.setStatus(TransactionStatus.CAPTURED.toString());</span>
+<span class="nc" id="L104">                logger.info(&quot;[PAGSEGURO WEBHOOK] Pagamento confirmado: {}&quot;, chargeId);</span>
+<span class="nc" id="L105">                break;</span>
+
+            case &quot;CHARGE.DECLINED&quot;:
+<span class="nc" id="L108">                transacao.setStatus(TransactionStatus.DENIED.toString());</span>
+<span class="nc" id="L109">                transacao.setErrorMessage((String) chargeData.get(&quot;decline_reason&quot;));</span>
+<span class="nc" id="L110">                logger.info(&quot;[PAGSEGURO WEBHOOK] Pagamento negado: {}&quot;, chargeId);</span>
+<span class="nc" id="L111">                break;</span>
+
+            case &quot;CHARGE.CANCELED&quot;:
+            case &quot;CHARGE.REFUNDED&quot;:
+<span class="nc" id="L115">                transacao.setStatus(TransactionStatus.VOIDED.toString());</span>
+<span class="nc" id="L116">                logger.info(&quot;[PAGSEGURO WEBHOOK] Pagamento cancelado/estornado: {}&quot;, chargeId);</span>
+<span class="nc" id="L117">                break;</span>
+
+            default:
+<span class="nc" id="L120">                logger.warn(&quot;[PAGSEGURO WEBHOOK] Evento desconhecido: {}&quot;, eventType);</span>
+<span class="nc" id="L121">                return;</span>
+        }
+
+<span class="nc" id="L124">        transacaoRepository.save(transacao);</span>
+<span class="nc" id="L125">        webhookService.notificarLojista(transacao);</span>
+<span class="nc" id="L126">    }</span>
+
+    private boolean validateSignature(String signature, String payload) {
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        if (signature == null || signature.isEmpty()) {</span>
+<span class="nc" id="L130">            return false;</span>
+        }
+
+        try {
+<span class="nc" id="L134">            String webhookSecret = System.getenv(&quot;PAGSEGURO_WEBHOOK_SECRET&quot;);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (webhookSecret == null) {</span>
+<span class="nc" id="L136">                webhookSecret = &quot;default-secret-key&quot;;</span>
+            }
+
+<span class="nc" id="L139">            Mac mac = Mac.getInstance(&quot;HmacSHA256&quot;);</span>
+<span class="nc" id="L140">            SecretKeySpec secretKeySpec = new SecretKeySpec(</span>
+<span class="nc" id="L141">                webhookSecret.getBytes(StandardCharsets.UTF_8), </span>
+                &quot;HmacSHA256&quot;
+            );
+<span class="nc" id="L144">            mac.init(secretKeySpec);</span>
+
+<span class="nc" id="L146">            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));</span>
+<span class="nc" id="L147">            String calculatedSignature = bytesToHex(hmacBytes);</span>
+
+<span class="nc" id="L149">            return calculatedSignature.equalsIgnoreCase(signature);</span>
+
+<span class="nc" id="L151">        } catch (Exception e) {</span>
+<span class="nc" id="L152">            logger.error(&quot;[PAGSEGURO WEBHOOK] Erro ao validar assinatura&quot;, e);</span>
+<span class="nc" id="L153">            return false;</span>
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+<span class="nc" id="L158">        StringBuilder result = new StringBuilder();</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        for (byte b : bytes) {</span>
+<span class="nc" id="L160">            result.append(String.format(&quot;%02x&quot;, b));</span>
+        }
+<span class="nc" id="L162">        return result.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

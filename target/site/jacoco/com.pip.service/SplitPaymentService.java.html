@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SplitPaymentService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">SplitPaymentService.java</span></div><h1>SplitPaymentService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.dto.SplitRequest;
+import com.pip.model.Gateway;
+import com.pip.model.Transacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Serviço para gerenciar Split de Pagamentos
+ * 
+ * Permite dividir o valor de uma transação entre múltiplos recebedores
+ * Suportado por: PagSeguro, Mercado Pago
+ * 
+ * Funcionalidades:
+ * - Split por valor fixo
+ * - Split por percentual
+ * - Distribuição de taxas
+ * - Validação de recebedores
+ * - Logs de auditoria
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L34">public class SplitPaymentService {</span>
+
+<span class="nc" id="L36">    private static final Logger logger = LoggerFactory.getLogger(SplitPaymentService.class);</span>
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    /**
+     * Processa split de pagamento no PagSeguro
+     * 
+     * @param gateway Gateway PagSeguro
+     * @param transacao Transação original
+     * @param splitRequest Configuração do split
+     * @return Resultado do processamento
+     */
+    public Map&lt;String, Object&gt; processPagSeguroSplit(Gateway gateway, Transacao transacao, SplitRequest splitRequest) {
+<span class="nc" id="L50">        logger.info(&quot;[SPLIT] Processando split PagSeguro - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+            // Validar split
+<span class="nc" id="L54">            validateSplit(splitRequest, transacao.getAmount());</span>
+
+            // Construir payload
+<span class="nc" id="L57">            Map&lt;String, Object&gt; payload = buildPagSeguroSplitPayload(splitRequest, transacao);</span>
+
+            // Configurar headers
+<span class="nc" id="L60">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L61">            headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L62">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+
+            // Fazer requisição
+<span class="nc" id="L65">            String url = gateway.getApiUrl() + &quot;/charges/&quot; + transacao.getGatewayTransactionId() + &quot;/splits&quot;;</span>
+<span class="nc" id="L66">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+
+<span class="nc" id="L68">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L75" title="All 4 branches missed.">            if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {</span>
+<span class="nc" id="L76">                logger.info(&quot;[SPLIT] Split PagSeguro processado com sucesso&quot;);</span>
+<span class="nc" id="L77">                return response.getBody();</span>
+            } else {
+<span class="nc" id="L79">                throw new RuntimeException(&quot;Falha ao processar split&quot;);</span>
+            }
+
+<span class="nc" id="L82">        } catch (Exception e) {</span>
+<span class="nc" id="L83">            logger.error(&quot;[SPLIT] Erro ao processar split PagSeguro&quot;, e);</span>
+<span class="nc" id="L84">            throw new RuntimeException(&quot;Erro no split de pagamento&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Processa split de pagamento no Mercado Pago (Marketplace)
+     * 
+     * @param gateway Gateway Mercado Pago
+     * @param transacao Transação original
+     * @param splitRequest Configuração do split
+     * @return Resultado do processamento
+     */
+    public Map&lt;String, Object&gt; processMercadoPagoSplit(Gateway gateway, Transacao transacao, SplitRequest splitRequest) {
+<span class="nc" id="L97">        logger.info(&quot;[SPLIT] Processando split Mercado Pago - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+<span class="nc" id="L100">            validateSplit(splitRequest, transacao.getAmount());</span>
+
+<span class="nc" id="L102">            Map&lt;String, Object&gt; payload = buildMercadoPagoSplitPayload(splitRequest, transacao);</span>
+
+<span class="nc" id="L104">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L105">            headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L106">            headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getMerchantKey());</span>
+
+<span class="nc" id="L108">            String url = gateway.getApiUrl() + &quot;/v1/payments/&quot; + transacao.getGatewayTransactionId() + &quot;/disbursements&quot;;</span>
+<span class="nc" id="L109">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+
+<span class="nc" id="L111">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L118" title="All 4 branches missed.">            if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {</span>
+<span class="nc" id="L119">                logger.info(&quot;[SPLIT] Split Mercado Pago processado com sucesso&quot;);</span>
+<span class="nc" id="L120">                return response.getBody();</span>
+            } else {
+<span class="nc" id="L122">                throw new RuntimeException(&quot;Falha ao processar split&quot;);</span>
+            }
+
+<span class="nc" id="L125">        } catch (Exception e) {</span>
+<span class="nc" id="L126">            logger.error(&quot;[SPLIT] Erro ao processar split Mercado Pago&quot;, e);</span>
+<span class="nc" id="L127">            throw new RuntimeException(&quot;Erro no split de pagamento&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Valida configuração de split
+     */
+    private void validateSplit(SplitRequest splitRequest, Long totalAmount) {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        Double totalAmountDouble = totalAmount != null ? totalAmount.doubleValue() : 0.0;</span>
+<span class="nc bnc" id="L136" title="All 4 branches missed.">        if (splitRequest.getReceivers() == null || splitRequest.getReceivers().isEmpty()) {</span>
+<span class="nc" id="L137">            throw new IllegalArgumentException(&quot;Nenhum recebedor definido&quot;);</span>
+        }
+
+<span class="nc" id="L140">        double totalSplit = 0.0;</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        for (SplitRequest.SplitReceiver receiver : splitRequest.getReceivers()) {</span>
+<span class="nc bnc" id="L143" title="All 4 branches missed.">            if (receiver.getReceiverId() == null || receiver.getReceiverId().isEmpty()) {</span>
+<span class="nc" id="L144">                throw new IllegalArgumentException(&quot;Receiver ID obrigatório&quot;);</span>
+            }
+
+<span class="nc bnc" id="L147" title="All 4 branches missed.">            if (receiver.getAmount() == null || receiver.getAmount() &lt;= 0) {</span>
+<span class="nc" id="L148">                throw new IllegalArgumentException(&quot;Valor do split inválido&quot;);</span>
+            }
+
+<span class="nc" id="L151">            totalSplit += receiver.getAmount();</span>
+<span class="nc" id="L152">        }</span>
+
+        // Validar se o total do split não excede o valor da transação
+<span class="nc bnc" id="L155" title="All 4 branches missed.">        if (&quot;FIXED&quot;.equals(splitRequest.getSplitType()) &amp;&amp; totalSplit &gt; totalAmountDouble) {</span>
+<span class="nc" id="L156">            throw new IllegalArgumentException(&quot;Total do split excede o valor da transação&quot;);</span>
+        }
+
+<span class="nc bnc" id="L159" title="All 4 branches missed.">        if (&quot;PERCENTAGE&quot;.equals(splitRequest.getSplitType()) &amp;&amp; totalSplit &gt; 100) {</span>
+<span class="nc" id="L160">            throw new IllegalArgumentException(&quot;Total de percentuais excede 100%&quot;);</span>
+        }
+<span class="nc" id="L162">    }</span>
+
+    /**
+     * Constrói payload para split do PagSeguro
+     */
+    private Map&lt;String, Object&gt; buildPagSeguroSplitPayload(SplitRequest splitRequest, Transacao transacao) {
+<span class="nc" id="L168">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+<span class="nc" id="L170">        List&lt;Map&lt;String, Object&gt;&gt; splits = new ArrayList&lt;&gt;();</span>
+        
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        for (SplitRequest.SplitReceiver receiver : splitRequest.getReceivers()) {</span>
+<span class="nc" id="L173">            Map&lt;String, Object&gt; split = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L174">            split.put(&quot;receiver_id&quot;, receiver.getReceiverId());</span>
+<span class="nc" id="L175">            split.put(&quot;amount&quot;, calculateAmount(receiver.getAmount(), transacao.getAmount(), splitRequest.getSplitType()));</span>
+<span class="nc" id="L176">            split.put(&quot;charge_processing_fee&quot;, receiver.isChargeFee());</span>
+<span class="nc" id="L177">            splits.add(split);</span>
+<span class="nc" id="L178">        }</span>
+        
+<span class="nc" id="L180">        payload.put(&quot;splits&quot;, splits);</span>
+<span class="nc" id="L181">        payload.put(&quot;split_type&quot;, splitRequest.getSplitType());</span>
+        
+<span class="nc" id="L183">        return payload;</span>
+    }
+
+    /**
+     * Constrói payload para split do Mercado Pago
+     */
+    private Map&lt;String, Object&gt; buildMercadoPagoSplitPayload(SplitRequest splitRequest, Transacao transacao) {
+<span class="nc" id="L190">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+<span class="nc" id="L192">        List&lt;Map&lt;String, Object&gt;&gt; disbursements = new ArrayList&lt;&gt;();</span>
+        
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        for (SplitRequest.SplitReceiver receiver : splitRequest.getReceivers()) {</span>
+<span class="nc" id="L195">            Map&lt;String, Object&gt; disbursement = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L196">            disbursement.put(&quot;collector_id&quot;, receiver.getReceiverId());</span>
+<span class="nc" id="L197">            disbursement.put(&quot;amount&quot;, calculateAmount(receiver.getAmount(), transacao.getAmount(), splitRequest.getSplitType()));</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            disbursement.put(&quot;application_fee&quot;, receiver.isChargeFee() ? 0 : null);</span>
+<span class="nc" id="L199">            disbursements.add(disbursement);</span>
+<span class="nc" id="L200">        }</span>
+        
+<span class="nc" id="L202">        payload.put(&quot;disbursements&quot;, disbursements);</span>
+        
+<span class="nc" id="L204">        return payload;</span>
+    }
+
+    /**
+     * Calcula valor baseado no tipo de split
+     */
+    private double calculateAmount(Double amount, Long totalAmount, String splitType) {
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (&quot;PERCENTAGE&quot;.equals(splitType)) {</span>
+<span class="nc" id="L212">            return (totalAmount * amount) / 100.0;</span>
+        } else {
+<span class="nc" id="L214">            return amount;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogTransacao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">LogTransacao.java</span></div><h1>LogTransacao.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa um log detalhado de transação para auditoria
+ */
+@Entity
+@Table(name = &quot;log_transacao&quot;, indexes = {
+    @Index(name = &quot;idx_log_transacao_id&quot;, columnList = &quot;transacao_id&quot;),
+    @Index(name = &quot;idx_log_lojista&quot;, columnList = &quot;lojista_id&quot;),
+    @Index(name = &quot;idx_log_gateway&quot;, columnList = &quot;gateway_id&quot;),
+    @Index(name = &quot;idx_log_evento&quot;, columnList = &quot;evento&quot;),
+    @Index(name = &quot;idx_log_timestamp&quot;, columnList = &quot;timestamp&quot;),
+    @Index(name = &quot;idx_log_nivel&quot;, columnList = &quot;nivel&quot;)
+})
+public class LogTransacao {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;transacao_id&quot;, nullable = false)
+    private Transacao transacao;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;lojista_id&quot;, nullable = false)
+    private Lojista lojista;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;gateway_id&quot;)
+    private Gateway gateway;
+
+    @Column(name = &quot;evento&quot;, nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    private EventoLog evento;
+
+    @Column(name = &quot;nivel&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private NivelLog nivel;
+
+    @Column(name = &quot;mensagem&quot;, nullable = false, length = 1000)
+    @NotBlank(message = &quot;Mensagem é obrigatória&quot;)
+    @Size(max = 1000, message = &quot;Mensagem deve ter no máximo 1000 caracteres&quot;)
+    private String mensagem;
+
+    @Column(name = &quot;detalhes&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String detalhes; // JSON com informações detalhadas
+
+    @Column(name = &quot;request_payload&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String requestPayload; // Payload da requisição (sem dados sensíveis)
+
+    @Column(name = &quot;response_payload&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String responsePayload; // Payload da resposta
+
+    @Column(name = &quot;http_status&quot;)
+    private Integer httpStatus;
+
+    @Column(name = &quot;tempo_resposta_ms&quot;)
+    private Long tempoRespostaMs;
+
+    @Column(name = &quot;ip_origem&quot;, length = 45)
+    @Size(max = 45, message = &quot;IP origem deve ter no máximo 45 caracteres&quot;)
+    private String ipOrigem;
+
+    @Column(name = &quot;user_agent&quot;, length = 500)
+    @Size(max = 500, message = &quot;User agent deve ter no máximo 500 caracteres&quot;)
+    private String userAgent;
+
+    @Column(name = &quot;api_key_id&quot;)
+    private UUID apiKeyId;
+
+    @Column(name = &quot;correlation_id&quot;, length = 100)
+    @Size(max = 100, message = &quot;Correlation ID deve ter no máximo 100 caracteres&quot;)
+    private String correlationId; // Para rastrear requisições relacionadas
+
+    @Column(name = &quot;session_id&quot;, length = 100)
+    @Size(max = 100, message = &quot;Session ID deve ter no máximo 100 caracteres&quot;)
+    private String sessionId;
+
+    @Column(name = &quot;erro_codigo&quot;, length = 50)
+    @Size(max = 50, message = &quot;Código de erro deve ter no máximo 50 caracteres&quot;)
+    private String erroCodigo;
+
+    @Column(name = &quot;erro_mensagem&quot;, length = 500)
+    @Size(max = 500, message = &quot;Mensagem de erro deve ter no máximo 500 caracteres&quot;)
+    private String erroMensagem;
+
+    @Column(name = &quot;stack_trace&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String stackTrace;
+
+    @Column(name = &quot;metadata&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String metadata; // JSON com metadados adicionais
+
+    @Column(name = &quot;timestamp&quot;, nullable = false)
+    private ZonedDateTime timestamp;
+
+<span class="fc" id="L103">    @Column(name = &quot;processado&quot;, nullable = false)</span>
+<span class="fc" id="L104">    private Boolean processado = false;</span>
+
+<span class="fc" id="L106">    @Column(name = &quot;alertado&quot;, nullable = false)</span>
+<span class="fc" id="L107">    private Boolean alertado = false;</span>
+
+    // Construtores
+<span class="fc" id="L110">    public LogTransacao() {</span>
+<span class="fc" id="L111">        this.timestamp = ZonedDateTime.now();</span>
+<span class="fc" id="L112">        this.processado = false;</span>
+<span class="fc" id="L113">        this.alertado = false;</span>
+<span class="fc" id="L114">    }</span>
+
+    public LogTransacao(Transacao transacao, Lojista lojista, EventoLog evento, NivelLog nivel, String mensagem) {
+<span class="nc" id="L117">        this();</span>
+<span class="nc" id="L118">        this.transacao = transacao;</span>
+<span class="nc" id="L119">        this.lojista = lojista;</span>
+<span class="nc" id="L120">        this.evento = evento;</span>
+<span class="nc" id="L121">        this.nivel = nivel;</span>
+<span class="nc" id="L122">        this.mensagem = mensagem;</span>
+<span class="nc" id="L123">    }</span>
+
+    // Métodos de negócio
+    public void marcarProcessado() {
+<span class="nc" id="L127">        this.processado = true;</span>
+<span class="nc" id="L128">    }</span>
+
+    public void marcarAlertado() {
+<span class="nc" id="L131">        this.alertado = true;</span>
+<span class="nc" id="L132">    }</span>
+
+    public boolean isErro() {
+<span class="nc bnc" id="L135" title="All 4 branches missed.">        return this.nivel == NivelLog.ERROR || this.nivel == NivelLog.FATAL;</span>
+    }
+
+    public boolean isWarning() {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        return this.nivel == NivelLog.WARN;</span>
+    }
+
+    public boolean precisaAlerta() {
+<span class="nc bnc" id="L143" title="All 6 branches missed.">        return (isErro() || isWarning()) &amp;&amp; !this.alertado;</span>
+    }
+
+    public void adicionarDetalhes(String chave, Object valor) {
+        // Implementação simplificada - em produção usar Jackson
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (this.detalhes == null) {</span>
+<span class="nc" id="L149">            this.detalhes = &quot;{}&quot;;</span>
+        }
+        // Adicionar lógica para inserir no JSON
+<span class="nc" id="L152">    }</span>
+
+    public void definirErro(String codigo, String mensagem, String stackTrace) {
+<span class="nc" id="L155">        this.erroCodigo = codigo;</span>
+<span class="nc" id="L156">        this.erroMensagem = mensagem;</span>
+<span class="nc" id="L157">        this.stackTrace = stackTrace;</span>
+<span class="nc" id="L158">        this.nivel = NivelLog.ERROR;</span>
+<span class="nc" id="L159">    }</span>
+
+    public void definirResposta(Integer httpStatus, String responsePayload, Long tempoResposta) {
+<span class="nc" id="L162">        this.httpStatus = httpStatus;</span>
+<span class="nc" id="L163">        this.responsePayload = responsePayload;</span>
+<span class="nc" id="L164">        this.tempoRespostaMs = tempoResposta;</span>
+<span class="nc" id="L165">    }</span>
+
+    public void definirRequisicao(String requestPayload, String ipOrigem, String userAgent) {
+<span class="nc" id="L168">        this.requestPayload = requestPayload;</span>
+<span class="nc" id="L169">        this.ipOrigem = ipOrigem;</span>
+<span class="nc" id="L170">        this.userAgent = userAgent;</span>
+<span class="nc" id="L171">    }</span>
+
+    public boolean isRequisicaoLenta() {
+<span class="nc bnc" id="L174" title="All 4 branches missed.">        return this.tempoRespostaMs != null &amp;&amp; this.tempoRespostaMs &gt; 5000; // &gt; 5 segundos</span>
+    }
+
+    public boolean isRequisicaoRapida() {
+<span class="nc bnc" id="L178" title="All 4 branches missed.">        return this.tempoRespostaMs != null &amp;&amp; this.tempoRespostaMs &lt; 200; // &lt; 200ms</span>
+    }
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="nc" id="L183">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="nc" id="L187">        this.id = id;</span>
+<span class="nc" id="L188">    }</span>
+
+    public Transacao getTransacao() {
+<span class="nc" id="L191">        return transacao;</span>
+    }
+
+    public void setTransacao(Transacao transacao) {
+<span class="nc" id="L195">        this.transacao = transacao;</span>
+<span class="nc" id="L196">    }</span>
+
+    public Lojista getLojista() {
+<span class="nc" id="L199">        return lojista;</span>
+    }
+
+    public void setLojista(Lojista lojista) {
+<span class="fc" id="L203">        this.lojista = lojista;</span>
+<span class="fc" id="L204">    }</span>
+
+    public Gateway getGateway() {
+<span class="nc" id="L207">        return gateway;</span>
+    }
+
+    public void setGateway(Gateway gateway) {
+<span class="fc" id="L211">        this.gateway = gateway;</span>
+<span class="fc" id="L212">    }</span>
+
+    public EventoLog getEvento() {
+<span class="nc" id="L215">        return evento;</span>
+    }
+
+    public void setEvento(EventoLog evento) {
+<span class="fc" id="L219">        this.evento = evento;</span>
+<span class="fc" id="L220">    }</span>
+
+    public NivelLog getNivel() {
+<span class="nc" id="L223">        return nivel;</span>
+    }
+
+    public void setNivel(NivelLog nivel) {
+<span class="fc" id="L227">        this.nivel = nivel;</span>
+<span class="fc" id="L228">    }</span>
+
+    public String getMensagem() {
+<span class="nc" id="L231">        return mensagem;</span>
+    }
+
+    public void setMensagem(String mensagem) {
+<span class="fc" id="L235">        this.mensagem = mensagem;</span>
+<span class="fc" id="L236">    }</span>
+
+    public String getDetalhes() {
+<span class="nc" id="L239">        return detalhes;</span>
+    }
+
+    public void setDetalhes(String detalhes) {
+<span class="nc" id="L243">        this.detalhes = detalhes;</span>
+<span class="nc" id="L244">    }</span>
+
+    public String getRequestPayload() {
+<span class="nc" id="L247">        return requestPayload;</span>
+    }
+
+    public void setRequestPayload(String requestPayload) {
+<span class="nc" id="L251">        this.requestPayload = requestPayload;</span>
+<span class="nc" id="L252">    }</span>
+
+    public String getResponsePayload() {
+<span class="nc" id="L255">        return responsePayload;</span>
+    }
+
+    public void setResponsePayload(String responsePayload) {
+<span class="nc" id="L259">        this.responsePayload = responsePayload;</span>
+<span class="nc" id="L260">    }</span>
+
+    public Integer getHttpStatus() {
+<span class="nc" id="L263">        return httpStatus;</span>
+    }
+
+    public void setHttpStatus(Integer httpStatus) {
+<span class="nc" id="L267">        this.httpStatus = httpStatus;</span>
+<span class="nc" id="L268">    }</span>
+
+    public Long getTempoRespostaMs() {
+<span class="nc" id="L271">        return tempoRespostaMs;</span>
+    }
+
+    public void setTempoRespostaMs(Long tempoRespostaMs) {
+<span class="nc" id="L275">        this.tempoRespostaMs = tempoRespostaMs;</span>
+<span class="nc" id="L276">    }</span>
+
+    public String getIpOrigem() {
+<span class="nc" id="L279">        return ipOrigem;</span>
+    }
+
+    public void setIpOrigem(String ipOrigem) {
+<span class="nc" id="L283">        this.ipOrigem = ipOrigem;</span>
+<span class="nc" id="L284">    }</span>
+
+    public String getUserAgent() {
+<span class="nc" id="L287">        return userAgent;</span>
+    }
+
+    public void setUserAgent(String userAgent) {
+<span class="nc" id="L291">        this.userAgent = userAgent;</span>
+<span class="nc" id="L292">    }</span>
+
+    public UUID getApiKeyId() {
+<span class="nc" id="L295">        return apiKeyId;</span>
+    }
+
+    public void setApiKeyId(UUID apiKeyId) {
+<span class="nc" id="L299">        this.apiKeyId = apiKeyId;</span>
+<span class="nc" id="L300">    }</span>
+
+    public String getCorrelationId() {
+<span class="nc" id="L303">        return correlationId;</span>
+    }
+
+    public void setCorrelationId(String correlationId) {
+<span class="nc" id="L307">        this.correlationId = correlationId;</span>
+<span class="nc" id="L308">    }</span>
+
+    public String getSessionId() {
+<span class="nc" id="L311">        return sessionId;</span>
+    }
+
+    public void setSessionId(String sessionId) {
+<span class="nc" id="L315">        this.sessionId = sessionId;</span>
+<span class="nc" id="L316">    }</span>
+
+    public String getErroCodigo() {
+<span class="nc" id="L319">        return erroCodigo;</span>
+    }
+
+    public void setErroCodigo(String erroCodigo) {
+<span class="nc" id="L323">        this.erroCodigo = erroCodigo;</span>
+<span class="nc" id="L324">    }</span>
+
+    public String getErroMensagem() {
+<span class="nc" id="L327">        return erroMensagem;</span>
+    }
+
+    public void setErroMensagem(String erroMensagem) {
+<span class="nc" id="L331">        this.erroMensagem = erroMensagem;</span>
+<span class="nc" id="L332">    }</span>
+
+    public String getStackTrace() {
+<span class="nc" id="L335">        return stackTrace;</span>
+    }
+
+    public void setStackTrace(String stackTrace) {
+<span class="nc" id="L339">        this.stackTrace = stackTrace;</span>
+<span class="nc" id="L340">    }</span>
+
+    public String getMetadata() {
+<span class="nc" id="L343">        return metadata;</span>
+    }
+
+    public void setMetadata(String metadata) {
+<span class="fc" id="L347">        this.metadata = metadata;</span>
+<span class="fc" id="L348">    }</span>
+
+    public ZonedDateTime getTimestamp() {
+<span class="nc" id="L351">        return timestamp;</span>
+    }
+
+    public void setTimestamp(ZonedDateTime timestamp) {
+<span class="fc" id="L355">        this.timestamp = timestamp;</span>
+<span class="fc" id="L356">    }</span>
+
+    public Boolean getProcessado() {
+<span class="nc" id="L359">        return processado;</span>
+    }
+
+    public void setProcessado(Boolean processado) {
+<span class="nc" id="L363">        this.processado = processado;</span>
+<span class="nc" id="L364">    }</span>
+
+    public Boolean getAlertado() {
+<span class="nc" id="L367">        return alertado;</span>
+    }
+
+    public void setAlertado(Boolean alertado) {
+<span class="nc" id="L371">        this.alertado = alertado;</span>
+<span class="nc" id="L372">    }</span>
+}
+
+/**
+ * Enum para eventos de log
+ */
+
+/**
+ * Enum para níveis de log
+ */
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Transacao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">Transacao.java</span></div><h1>Transacao.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa uma transação de pagamento
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Entity
+@Table(name = &quot;transacao&quot;)
+public class Transacao {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @Column(name = &quot;lojista_id&quot;, nullable = false)
+    private UUID lojistaId;
+
+    @Column(name = &quot;valor&quot;, nullable = false)
+    private Long valor;
+
+    @Column(name = &quot;status&quot;, nullable = false)
+    private String status;
+
+    @Column(name = &quot;card_token&quot;, nullable = false)
+    private String cardToken;
+
+    @Column(name = &quot;gateway_id&quot;)
+    private String gatewayId;
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private ZonedDateTime createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    private ZonedDateTime updatedAt;
+
+    @Column(name = &quot;transaction_id&quot;)
+    private String transactionId;
+
+    @Column(name = &quot;gateway_transaction_id&quot;)
+    private String gatewayTransactionId;
+
+    @Column(name = &quot;customer_name&quot;)
+    private String customerName;
+
+    @Column(name = &quot;customer_email&quot;)
+    private String customerEmail;
+
+    @Column(name = &quot;customer_document&quot;)
+    private String customerDocument;
+
+    @Column(name = &quot;card_brand&quot;)
+    private String cardBrand;
+
+    @Column(name = &quot;card_last_digits&quot;)
+    private String cardLastDigits;
+
+    @Column(name = &quot;moeda&quot;)
+    private String moeda;
+
+    @Column(name = &quot;parcelas&quot;)
+    private Integer parcelas;
+
+    @Column(name = &quot;authorization_code&quot;)
+    private String authorizationCode;
+
+    @Column(name = &quot;nsu&quot;)
+    private String nsu;
+
+    @Column(name = &quot;tid&quot;)
+    private String tid;
+
+    @Column(name = &quot;authorized_at&quot;)
+    private ZonedDateTime authorizedAt;
+
+    @Column(name = &quot;captured_at&quot;)
+    private ZonedDateTime capturedAt;
+
+    @Column(name = &quot;voided_at&quot;)
+    private ZonedDateTime voidedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;lojista_id&quot;, insertable = false, updatable = false)
+    private Lojista lojista;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = &quot;gateway&quot;)
+    private Gateway gateway;
+
+    @Column(name = &quot;error_code&quot;)
+    private String errorCode;
+
+    @Column(name = &quot;error_message&quot;)
+    private String errorMessage;
+
+    @Column(name = &quot;valor_capturado&quot;)
+    private Long valorCapturado;
+
+    @Column(name = &quot;void_reason&quot;, length = 500)
+    private String voidReason;
+
+    // Construtores
+<span class="fc" id="L107">    public Transacao() {</span>
+<span class="fc" id="L108">        this.createdAt = ZonedDateTime.now();</span>
+<span class="fc" id="L109">    }</span>
+
+    public Transacao(UUID lojistaId, Long valor, String status, String cardToken) {
+<span class="nc" id="L112">        this();</span>
+<span class="nc" id="L113">        this.lojistaId = lojistaId;</span>
+<span class="nc" id="L114">        this.valor = valor;</span>
+<span class="nc" id="L115">        this.status = status;</span>
+<span class="nc" id="L116">        this.cardToken = cardToken;</span>
+<span class="nc" id="L117">    }</span>
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="nc" id="L121">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="nc" id="L125">        this.id = id;</span>
+<span class="nc" id="L126">    }</span>
+
+    public UUID getLojistaId() {
+<span class="nc" id="L129">        return lojistaId;</span>
+    }
+
+    public void setLojistaId(UUID lojistaId) {
+<span class="nc" id="L133">        this.lojistaId = lojistaId;</span>
+<span class="nc" id="L134">    }</span>
+
+    public Long getValor() {
+<span class="fc" id="L137">        return valor;</span>
+    }
+
+    public void setValor(Long valor) {
+<span class="fc" id="L141">        this.valor = valor;</span>
+<span class="fc" id="L142">    }</span>
+    
+    // Alias para getValor (compatibilidade)
+    public Long getAmount() {
+<span class="nc" id="L146">        return valor;</span>
+    }
+    
+    public void setAmount(Long amount) {
+<span class="nc" id="L150">        this.valor = amount;</span>
+<span class="nc" id="L151">    }</span>
+
+    public String getStatus() {
+<span class="fc" id="L154">        return status;</span>
+    }
+
+    public void setStatus(String status) {
+<span class="fc" id="L158">        this.status = status;</span>
+<span class="fc" id="L159">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L160">    }</span>
+
+    public String getCardToken() {
+<span class="nc" id="L163">        return cardToken;</span>
+    }
+
+    public void setCardToken(String cardToken) {
+<span class="nc" id="L167">        this.cardToken = cardToken;</span>
+<span class="nc" id="L168">    }</span>
+
+    public String getGatewayId() {
+<span class="nc" id="L171">        return gatewayId;</span>
+    }
+
+    public void setGatewayId(String gatewayId) {
+<span class="nc" id="L175">        this.gatewayId = gatewayId;</span>
+<span class="nc" id="L176">    }</span>
+
+    public ZonedDateTime getCreatedAt() {
+<span class="fc" id="L179">        return createdAt;</span>
+    }
+
+    public void setCreatedAt(ZonedDateTime createdAt) {
+<span class="fc" id="L183">        this.createdAt = createdAt;</span>
+<span class="fc" id="L184">    }</span>
+
+    public ZonedDateTime getUpdatedAt() {
+<span class="nc" id="L187">        return updatedAt;</span>
+    }
+
+    public void setUpdatedAt(ZonedDateTime updatedAt) {
+<span class="nc" id="L191">        this.updatedAt = updatedAt;</span>
+<span class="nc" id="L192">    }</span>
+
+    public String getTransactionId() {
+<span class="fc" id="L195">        return transactionId;</span>
+    }
+
+    public void setTransactionId(String transactionId) {
+<span class="fc" id="L199">        this.transactionId = transactionId;</span>
+<span class="fc" id="L200">    }</span>
+
+    public String getGatewayTransactionId() {
+<span class="fc" id="L203">        return gatewayTransactionId;</span>
+    }
+
+    public void setGatewayTransactionId(String gatewayTransactionId) {
+<span class="nc" id="L207">        this.gatewayTransactionId = gatewayTransactionId;</span>
+<span class="nc" id="L208">    }</span>
+
+    public String getCustomerName() {
+<span class="fc" id="L211">        return customerName;</span>
+    }
+
+    public void setCustomerName(String customerName) {
+<span class="nc" id="L215">        this.customerName = customerName;</span>
+<span class="nc" id="L216">    }</span>
+
+    public String getCustomerEmail() {
+<span class="nc" id="L219">        return customerEmail;</span>
+    }
+
+    public void setCustomerEmail(String customerEmail) {
+<span class="nc" id="L223">        this.customerEmail = customerEmail;</span>
+<span class="nc" id="L224">    }</span>
+
+    public String getCustomerDocument() {
+<span class="nc" id="L227">        return customerDocument;</span>
+    }
+
+    public void setCustomerDocument(String customerDocument) {
+<span class="nc" id="L231">        this.customerDocument = customerDocument;</span>
+<span class="nc" id="L232">    }</span>
+
+    public String getCardBrand() {
+<span class="nc" id="L235">        return cardBrand;</span>
+    }
+
+    public void setCardBrand(String cardBrand) {
+<span class="nc" id="L239">        this.cardBrand = cardBrand;</span>
+<span class="nc" id="L240">    }</span>
+
+    public String getCardLastDigits() {
+<span class="fc" id="L243">        return cardLastDigits;</span>
+    }
+
+    public void setCardLastDigits(String cardLastDigits) {
+<span class="nc" id="L247">        this.cardLastDigits = cardLastDigits;</span>
+<span class="nc" id="L248">    }</span>
+
+    public String getMoeda() {
+<span class="fc" id="L251">        return moeda;</span>
+    }
+
+    public void setMoeda(String moeda) {
+<span class="fc" id="L255">        this.moeda = moeda;</span>
+<span class="fc" id="L256">    }</span>
+
+    public Integer getParcelas() {
+<span class="fc" id="L259">        return parcelas;</span>
+    }
+
+    public void setParcelas(Integer parcelas) {
+<span class="fc" id="L263">        this.parcelas = parcelas;</span>
+<span class="fc" id="L264">    }</span>
+
+    public String getAuthorizationCode() {
+<span class="fc" id="L267">        return authorizationCode;</span>
+    }
+
+    public void setAuthorizationCode(String authorizationCode) {
+<span class="nc" id="L271">        this.authorizationCode = authorizationCode;</span>
+<span class="nc" id="L272">    }</span>
+
+    public String getNsu() {
+<span class="fc" id="L275">        return nsu;</span>
+    }
+
+    public void setNsu(String nsu) {
+<span class="nc" id="L279">        this.nsu = nsu;</span>
+<span class="nc" id="L280">    }</span>
+
+    public String getTid() {
+<span class="fc" id="L283">        return tid;</span>
+    }
+
+    public void setTid(String tid) {
+<span class="nc" id="L287">        this.tid = tid;</span>
+<span class="nc" id="L288">    }</span>
+
+    public ZonedDateTime getAuthorizedAt() {
+<span class="fc" id="L291">        return authorizedAt;</span>
+    }
+
+    public void setAuthorizedAt(ZonedDateTime authorizedAt) {
+<span class="nc" id="L295">        this.authorizedAt = authorizedAt;</span>
+<span class="nc" id="L296">    }</span>
+
+    public ZonedDateTime getCapturedAt() {
+<span class="fc" id="L299">        return capturedAt;</span>
+    }
+
+    public void setCapturedAt(ZonedDateTime capturedAt) {
+<span class="nc" id="L303">        this.capturedAt = capturedAt;</span>
+<span class="nc" id="L304">    }</span>
+
+    public ZonedDateTime getVoidedAt() {
+<span class="fc" id="L307">        return voidedAt;</span>
+    }
+
+    public void setVoidedAt(ZonedDateTime voidedAt) {
+<span class="nc" id="L311">        this.voidedAt = voidedAt;</span>
+<span class="nc" id="L312">    }</span>
+
+    public Lojista getLojista() {
+<span class="nc" id="L315">        return lojista;</span>
+    }
+
+    public void setLojista(Lojista lojista) {
+<span class="fc" id="L319">        this.lojista = lojista;</span>
+<span class="fc" id="L320">    }</span>
+
+    public Gateway getGateway() {
+<span class="nc" id="L323">        return gateway;</span>
+    }
+
+    public void setGateway(Gateway gateway) {
+<span class="nc" id="L327">        this.gateway = gateway;</span>
+<span class="nc" id="L328">    }</span>
+
+    public String getErrorCode() {
+<span class="nc" id="L331">        return errorCode;</span>
+    }
+
+    public void setErrorCode(String errorCode) {
+<span class="nc" id="L335">        this.errorCode = errorCode;</span>
+<span class="nc" id="L336">    }</span>
+
+    public String getErrorMessage() {
+<span class="nc" id="L339">        return errorMessage;</span>
+    }
+
+    public void setErrorMessage(String errorMessage) {
+<span class="nc" id="L343">        this.errorMessage = errorMessage;</span>
+<span class="nc" id="L344">    }</span>
+
+    public Long getValorCapturado() {
+<span class="nc" id="L347">        return valorCapturado;</span>
+    }
+
+    public void setValorCapturado(Long valorCapturado) {
+<span class="nc" id="L351">        this.valorCapturado = valorCapturado;</span>
+<span class="nc" id="L352">    }</span>
+
+    public String getVoidReason() {
+<span class="nc" id="L355">        return voidReason;</span>
+    }
+
+    public void setVoidReason(String voidReason) {
+<span class="nc" id="L359">        this.voidReason = voidReason;</span>
+<span class="nc" id="L360">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L361">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

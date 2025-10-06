@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeyVaultAccessMonitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.security</a> &gt; <span class="el_source">KeyVaultAccessMonitor.java</span></div><h1>KeyVaultAccessMonitor.java</h1><pre class="source lang-java linenums">package com.pip.security;
+
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.core.http.rest.PagedIterable;
+import com.azure.security.keyvault.secrets.models.SecretProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Serviço de Monitoramento de Acesso ao Azure Key Vault
+ * 
+ * Funcionalidades:
+ * - Monitoramento contínuo de acessos
+ * - Detecção de acessos suspeitos
+ * - Alertas em tempo real
+ * - Auditoria completa
+ * - Métricas de uso
+ */
+@Service
+<span class="nc" id="L28">public class KeyVaultAccessMonitor {</span>
+    
+<span class="nc" id="L30">    private static final Logger logger = LoggerFactory.getLogger(KeyVaultAccessMonitor.class);</span>
+<span class="nc" id="L31">    private static final Logger auditLogger = LoggerFactory.getLogger(&quot;AUDIT&quot;);</span>
+    
+    @Autowired(required = false)
+    private SecretClient secretClient;
+    
+    // Armazena último acesso de cada secret
+<span class="nc" id="L37">    private final Map&lt;String, LocalDateTime&gt; lastAccessMap = new ConcurrentHashMap&lt;&gt;();</span>
+    
+    // Armazena contadores de acesso
+<span class="nc" id="L40">    private final Map&lt;String, Long&gt; accessCountMap = new ConcurrentHashMap&lt;&gt;();</span>
+    
+    // Armazena alertas de segurança
+<span class="nc" id="L43">    private final List&lt;SecurityAlert&gt; securityAlerts = Collections.synchronizedList(new ArrayList&lt;&gt;());</span>
+    
+    // Limites de segurança
+    private static final int MAX_ACCESS_PER_MINUTE = 60;
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    
+    /**
+     * Monitora acessos ao Key Vault a cada minuto
+     */
+    @Scheduled(fixedRate = 60000) // A cada 1 minuto
+    public void monitorAccess() {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (secretClient == null) {</span>
+<span class="nc" id="L55">            logger.warn(&quot;SecretClient não configurado. Monitoramento desabilitado.&quot;);</span>
+<span class="nc" id="L56">            return;</span>
+        }
+        
+        try {
+<span class="nc" id="L60">            logger.info(&quot;🔍 Iniciando monitoramento de acesso ao Key Vault...&quot;);</span>
+            
+            // Lista todos os secrets
+<span class="nc" id="L63">            PagedIterable&lt;SecretProperties&gt; secrets = secretClient.listPropertiesOfSecrets();</span>
+            
+<span class="nc" id="L65">            int totalSecrets = 0;</span>
+<span class="nc" id="L66">            int accessedSecrets = 0;</span>
+            
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            for (SecretProperties secretProperties : secrets) {</span>
+<span class="nc" id="L69">                totalSecrets++;</span>
+<span class="nc" id="L70">                String secretName = secretProperties.getName();</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                LocalDateTime updatedOn = secretProperties.getUpdatedOn() != null </span>
+<span class="nc" id="L72">                    ? LocalDateTime.ofInstant(secretProperties.getUpdatedOn().toInstant(), ZoneId.systemDefault())</span>
+<span class="nc" id="L73">                    : null;</span>
+                
+                // Verifica se houve acesso recente
+<span class="nc bnc" id="L76" title="All 4 branches missed.">                if (updatedOn != null &amp;&amp; updatedOn.isAfter(LocalDateTime.now().minusMinutes(1))) {</span>
+<span class="nc" id="L77">                    accessedSecrets++;</span>
+<span class="nc" id="L78">                    recordAccess(secretName, updatedOn);</span>
+                }
+                
+                // Verifica padrões suspeitos
+<span class="nc" id="L82">                checkSuspiciousActivity(secretName);</span>
+<span class="nc" id="L83">            }</span>
+            
+<span class="nc" id="L85">            logger.info(&quot;✅ Monitoramento concluído: {} secrets, {} acessados recentemente&quot;, </span>
+<span class="nc" id="L86">                totalSecrets, accessedSecrets);</span>
+            
+            // Gera relatório de métricas
+<span class="nc" id="L89">            generateMetricsReport();</span>
+            
+<span class="nc" id="L91">        } catch (Exception e) {</span>
+<span class="nc" id="L92">            logger.error(&quot;❌ Erro ao monitorar acesso ao Key Vault: {}&quot;, e.getMessage(), e);</span>
+<span class="nc" id="L93">            createAlert(&quot;MONITORING_ERROR&quot;, &quot;Erro no monitoramento: &quot; + e.getMessage(), &quot;HIGH&quot;);</span>
+<span class="nc" id="L94">        }</span>
+<span class="nc" id="L95">    }</span>
+    
+    /**
+     * Registra acesso a um secret
+     */
+    private void recordAccess(String secretName, LocalDateTime accessTime) {
+<span class="nc" id="L101">        lastAccessMap.put(secretName, accessTime);</span>
+<span class="nc" id="L102">        accessCountMap.merge(secretName, 1L, Long::sum);</span>
+        
+<span class="nc" id="L104">        auditLogger.info(&quot;KEY_VAULT_ACCESS | secret={} | time={} | count={}&quot;, </span>
+<span class="nc" id="L105">            secretName, accessTime, accessCountMap.get(secretName));</span>
+<span class="nc" id="L106">    }</span>
+    
+    /**
+     * Verifica atividades suspeitas
+     */
+    private void checkSuspiciousActivity(String secretName) {
+<span class="nc" id="L112">        Long accessCount = accessCountMap.getOrDefault(secretName, 0L);</span>
+        
+        // Alerta: Muitos acessos em curto período
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (accessCount &gt; MAX_ACCESS_PER_MINUTE) {</span>
+<span class="nc" id="L116">            createAlert(</span>
+                &quot;EXCESSIVE_ACCESS&quot;,
+<span class="nc" id="L118">                String.format(&quot;Secret '%s' acessado %d vezes em 1 minuto (limite: %d)&quot;, </span>
+<span class="nc" id="L119">                    secretName, accessCount, MAX_ACCESS_PER_MINUTE),</span>
+                &quot;HIGH&quot;
+            );
+        }
+        
+        // Alerta: Acesso a secret sensível
+<span class="nc bnc" id="L125" title="All 4 branches missed.">        if (secretName.contains(&quot;prod&quot;) || secretName.contains(&quot;master&quot;)) {</span>
+<span class="nc" id="L126">            auditLogger.warn(&quot;⚠️ SENSITIVE_SECRET_ACCESS | secret={} | count={}&quot;, </span>
+                secretName, accessCount);
+        }
+<span class="nc" id="L129">    }</span>
+    
+    /**
+     * Cria alerta de segurança
+     */
+    private void createAlert(String type, String message, String severity) {
+<span class="nc" id="L135">        SecurityAlert alert = new SecurityAlert(</span>
+<span class="nc" id="L136">            UUID.randomUUID().toString(),</span>
+            type,
+            message,
+            severity,
+<span class="nc" id="L140">            LocalDateTime.now()</span>
+        );
+        
+<span class="nc" id="L143">        securityAlerts.add(alert);</span>
+        
+<span class="nc" id="L145">        logger.warn(&quot;🚨 SECURITY_ALERT | type={} | severity={} | message={}&quot;, </span>
+            type, severity, message);
+        
+<span class="nc" id="L148">        auditLogger.warn(&quot;SECURITY_ALERT | {}&quot;, alert);</span>
+        
+        // Em produção, enviar para sistema de alertas (Slack, PagerDuty, etc)
+<span class="nc" id="L151">        sendAlertNotification(alert);</span>
+<span class="nc" id="L152">    }</span>
+    
+    /**
+     * Envia notificação de alerta
+     */
+    private void sendAlertNotification(SecurityAlert alert) {
+        // TODO: Integrar com sistema de notificações
+        // Exemplos: Slack, PagerDuty, Email, SMS
+<span class="nc" id="L160">        logger.info(&quot;📧 Enviando notificação de alerta: {}&quot;, alert.getMessage());</span>
+<span class="nc" id="L161">    }</span>
+    
+    /**
+     * Gera relatório de métricas
+     */
+    private void generateMetricsReport() {
+<span class="nc" id="L167">        long totalAccesses = accessCountMap.values().stream().mapToLong(Long::longValue).sum();</span>
+<span class="nc" id="L168">        int uniqueSecrets = accessCountMap.size();</span>
+<span class="nc" id="L169">        int totalAlerts = securityAlerts.size();</span>
+        
+<span class="nc" id="L171">        logger.info(&quot;📊 MÉTRICAS KEY VAULT:&quot;);</span>
+<span class="nc" id="L172">        logger.info(&quot;   - Total de acessos: {}&quot;, totalAccesses);</span>
+<span class="nc" id="L173">        logger.info(&quot;   - Secrets únicos acessados: {}&quot;, uniqueSecrets);</span>
+<span class="nc" id="L174">        logger.info(&quot;   - Alertas de segurança: {}&quot;, totalAlerts);</span>
+        
+        // Top 5 secrets mais acessados
+<span class="nc" id="L177">        accessCountMap.entrySet().stream()</span>
+<span class="nc" id="L178">            .sorted(Map.Entry.&lt;String, Long&gt;comparingByValue().reversed())</span>
+<span class="nc" id="L179">            .limit(5)</span>
+<span class="nc" id="L180">            .forEach(entry -&gt; </span>
+<span class="nc" id="L181">                logger.info(&quot;   - {} : {} acessos&quot;, entry.getKey(), entry.getValue())</span>
+            );
+<span class="nc" id="L183">    }</span>
+    
+    /**
+     * Limpa dados antigos (executado diariamente)
+     */
+    @Scheduled(cron = &quot;0 0 0 * * *&quot;) // Meia-noite todos os dias
+    public void cleanupOldData() {
+<span class="nc" id="L190">        logger.info(&quot;🧹 Limpando dados antigos de monitoramento...&quot;);</span>
+        
+<span class="nc" id="L192">        LocalDateTime cutoff = LocalDateTime.now().minusDays(7);</span>
+        
+        // Remove acessos antigos
+<span class="nc" id="L195">        lastAccessMap.entrySet().removeIf(entry -&gt; entry.getValue().isBefore(cutoff));</span>
+        
+        // Reseta contadores
+<span class="nc" id="L198">        accessCountMap.clear();</span>
+        
+        // Remove alertas antigos
+<span class="nc" id="L201">        securityAlerts.removeIf(alert -&gt; alert.getTimestamp().isBefore(cutoff));</span>
+        
+<span class="nc" id="L203">        logger.info(&quot;✅ Limpeza concluída&quot;);</span>
+<span class="nc" id="L204">    }</span>
+    
+    /**
+     * Retorna alertas de segurança recentes
+     */
+    public List&lt;SecurityAlert&gt; getRecentAlerts(int hours) {
+<span class="nc" id="L210">        LocalDateTime cutoff = LocalDateTime.now().minusHours(hours);</span>
+<span class="nc" id="L211">        return securityAlerts.stream()</span>
+<span class="nc" id="L212">            .filter(alert -&gt; alert.getTimestamp().isAfter(cutoff))</span>
+<span class="nc" id="L213">            .toList();</span>
+    }
+    
+    /**
+     * Retorna métricas de acesso
+     */
+    public Map&lt;String, Object&gt; getAccessMetrics() {
+<span class="nc" id="L220">        Map&lt;String, Object&gt; metrics = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L221">        metrics.put(&quot;totalAccesses&quot;, accessCountMap.values().stream().mapToLong(Long::longValue).sum());</span>
+<span class="nc" id="L222">        metrics.put(&quot;uniqueSecrets&quot;, accessCountMap.size());</span>
+<span class="nc" id="L223">        metrics.put(&quot;totalAlerts&quot;, securityAlerts.size());</span>
+<span class="nc" id="L224">        metrics.put(&quot;lastMonitoring&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L225">        return metrics;</span>
+    }
+    
+    /**
+     * Classe interna para alertas de segurança
+     */
+    public static class SecurityAlert {
+        private final String id;
+        private final String type;
+        private final String message;
+        private final String severity;
+        private final LocalDateTime timestamp;
+        
+<span class="nc" id="L238">        public SecurityAlert(String id, String type, String message, String severity, LocalDateTime timestamp) {</span>
+<span class="nc" id="L239">            this.id = id;</span>
+<span class="nc" id="L240">            this.type = type;</span>
+<span class="nc" id="L241">            this.message = message;</span>
+<span class="nc" id="L242">            this.severity = severity;</span>
+<span class="nc" id="L243">            this.timestamp = timestamp;</span>
+<span class="nc" id="L244">        }</span>
+        
+<span class="nc" id="L246">        public String getId() { return id; }</span>
+<span class="nc" id="L247">        public String getType() { return type; }</span>
+<span class="nc" id="L248">        public String getMessage() { return message; }</span>
+<span class="nc" id="L249">        public String getSeverity() { return severity; }</span>
+<span class="nc" id="L250">        public LocalDateTime getTimestamp() { return timestamp; }</span>
+        
+        @Override
+        public String toString() {
+<span class="nc" id="L254">            return String.format(&quot;SecurityAlert{id='%s', type='%s', severity='%s', message='%s', timestamp=%s}&quot;,</span>
+                id, type, severity, message, timestamp);
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

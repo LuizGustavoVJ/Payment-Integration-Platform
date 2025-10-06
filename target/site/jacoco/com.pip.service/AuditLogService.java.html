@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuditLogService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">AuditLogService.java</span></div><h1>AuditLogService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Serviço para gerenciar logs de auditoria
+ * Registra todas as ações críticas do sistema para compliance PCI-DSS e LGPD
+ */
+@Service
+<span class="nc" id="L17">public class AuditLogService {</span>
+    
+<span class="nc" id="L19">    private static final Logger auditLogger = LoggerFactory.getLogger(&quot;com.pip.audit&quot;);</span>
+    
+<span class="nc" id="L21">    public enum AuditAction {</span>
+<span class="nc" id="L22">        PAYMENT_CREATED,</span>
+<span class="nc" id="L23">        PAYMENT_AUTHORIZED,</span>
+<span class="nc" id="L24">        PAYMENT_CAPTURED,</span>
+<span class="nc" id="L25">        PAYMENT_VOIDED,</span>
+<span class="nc" id="L26">        PAYMENT_REFUNDED,</span>
+<span class="nc" id="L27">        API_KEY_CREATED,</span>
+<span class="nc" id="L28">        API_KEY_REVOKED,</span>
+<span class="nc" id="L29">        WEBHOOK_CONFIGURED,</span>
+<span class="nc" id="L30">        WEBHOOK_SENT,</span>
+<span class="nc" id="L31">        GATEWAY_CONFIGURED,</span>
+<span class="nc" id="L32">        USER_LOGIN,</span>
+<span class="nc" id="L33">        USER_LOGOUT,</span>
+<span class="nc" id="L34">        SENSITIVE_DATA_ACCESSED,</span>
+<span class="nc" id="L35">        CONFIGURATION_CHANGED</span>
+    }
+    
+    /**
+     * Registra um evento de auditoria
+     */
+    public void logAuditEvent(AuditAction action, String userId, String resourceId, Map&lt;String, Object&gt; details) {
+<span class="nc" id="L42">        Map&lt;String, Object&gt; auditData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L43">        auditData.put(&quot;timestamp&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L44">        auditData.put(&quot;action&quot;, action.name());</span>
+<span class="nc" id="L45">        auditData.put(&quot;userId&quot;, userId);</span>
+<span class="nc" id="L46">        auditData.put(&quot;resourceId&quot;, resourceId);</span>
+<span class="nc" id="L47">        auditData.put(&quot;details&quot;, details);</span>
+<span class="nc" id="L48">        auditData.put(&quot;traceId&quot;, MDC.get(&quot;traceId&quot;));</span>
+<span class="nc" id="L49">        auditData.put(&quot;ipAddress&quot;, MDC.get(&quot;clientIp&quot;));</span>
+        
+<span class="nc" id="L51">        auditLogger.info(&quot;Audit event: {}&quot;, auditData);</span>
+<span class="nc" id="L52">    }</span>
+    
+    /**
+     * Registra criação de pagamento
+     */
+    public void logPaymentCreated(String userId, String transactionId, String gateway, Double amount) {
+<span class="nc" id="L58">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L59">        details.put(&quot;gateway&quot;, gateway);</span>
+<span class="nc" id="L60">        details.put(&quot;amount&quot;, amount);</span>
+<span class="nc" id="L61">        details.put(&quot;currency&quot;, &quot;BRL&quot;);</span>
+        
+<span class="nc" id="L63">        logAuditEvent(AuditAction.PAYMENT_CREATED, userId, transactionId, details);</span>
+<span class="nc" id="L64">    }</span>
+    
+    /**
+     * Registra autorização de pagamento
+     */
+    public void logPaymentAuthorized(String userId, String transactionId, String authorizationCode) {
+<span class="nc" id="L70">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L71">        details.put(&quot;authorizationCode&quot;, authorizationCode);</span>
+        
+<span class="nc" id="L73">        logAuditEvent(AuditAction.PAYMENT_AUTHORIZED, userId, transactionId, details);</span>
+<span class="nc" id="L74">    }</span>
+    
+    /**
+     * Registra captura de pagamento
+     */
+    public void logPaymentCaptured(String userId, String transactionId, Double amount) {
+<span class="nc" id="L80">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L81">        details.put(&quot;capturedAmount&quot;, amount);</span>
+        
+<span class="nc" id="L83">        logAuditEvent(AuditAction.PAYMENT_CAPTURED, userId, transactionId, details);</span>
+<span class="nc" id="L84">    }</span>
+    
+    /**
+     * Registra cancelamento de pagamento
+     */
+    public void logPaymentVoided(String userId, String transactionId, String reason) {
+<span class="nc" id="L90">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L91">        details.put(&quot;reason&quot;, reason);</span>
+        
+<span class="nc" id="L93">        logAuditEvent(AuditAction.PAYMENT_VOIDED, userId, transactionId, details);</span>
+<span class="nc" id="L94">    }</span>
+    
+    /**
+     * Registra acesso a dados sensíveis
+     */
+    public void logSensitiveDataAccess(String userId, String dataType, String resourceId) {
+<span class="nc" id="L100">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L101">        details.put(&quot;dataType&quot;, dataType);</span>
+<span class="nc" id="L102">        details.put(&quot;accessTime&quot;, LocalDateTime.now());</span>
+        
+<span class="nc" id="L104">        logAuditEvent(AuditAction.SENSITIVE_DATA_ACCESSED, userId, resourceId, details);</span>
+<span class="nc" id="L105">    }</span>
+    
+    /**
+     * Registra mudança de configuração
+     */
+    public void logConfigurationChange(String userId, String configKey, String oldValue, String newValue) {
+<span class="nc" id="L111">        Map&lt;String, Object&gt; details = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L112">        details.put(&quot;configKey&quot;, configKey);</span>
+<span class="nc" id="L113">        details.put(&quot;oldValue&quot;, oldValue);</span>
+<span class="nc" id="L114">        details.put(&quot;newValue&quot;, newValue);</span>
+        
+<span class="nc" id="L116">        logAuditEvent(AuditAction.CONFIGURATION_CHANGED, userId, configKey, details);</span>
+<span class="nc" id="L117">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

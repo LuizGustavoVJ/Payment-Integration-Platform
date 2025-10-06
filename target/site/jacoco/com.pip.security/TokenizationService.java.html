@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenizationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.security</a> &gt; <span class="el_source">TokenizationService.java</span></div><h1>TokenizationService.java</h1><pre class="source lang-java linenums">package com.pip.security;
+
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.security.keyvault.secrets.models.KeyVaultSecret;
+import com.pip.audit.SecurityAuditLogger;
+import com.pip.dto.TokenizationRequest;
+import com.pip.dto.TokenizationResponse;
+import com.pip.dto.DetokenizationRequest;
+import com.pip.dto.DetokenizationResponse;
+import com.pip.exception.TokenizationException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.UUID;
+
+/**
+ * Serviço de tokenização PCI DSS compliant
+ * Implementa tokenização irreversível usando Azure Key Vault
+ */
+@Service
+<span class="nc" id="L26">public class TokenizationService {</span>
+    
+<span class="nc" id="L28">    private static final Logger logger = LoggerFactory.getLogger(TokenizationService.class);</span>
+    private static final String TOKEN_PREFIX = &quot;tkn_live_&quot;;
+    private static final String TOKEN_TEST_PREFIX = &quot;tkn_test_&quot;;
+    
+    @Autowired
+    private SecretClient secretClient;
+    
+    @Autowired
+    private SecurityAuditLogger auditLogger;
+    
+<span class="nc" id="L38">    private final SecureRandom secureRandom = new SecureRandom();</span>
+    
+    /**
+     * Tokeniza dados sensíveis de cartão de crédito
+     * @param request Dados do cartão para tokenização
+     * @return Token irreversível e seguro
+     */
+    public TokenizationResponse tokenize(TokenizationRequest request) {
+<span class="nc" id="L46">        String requestId = UUID.randomUUID().toString();</span>
+        
+        try {
+            // Log início da tokenização
+<span class="nc" id="L50">            auditLogger.logTokenizationStart(requestId, request.getMerchantId());</span>
+            
+            // Validar dados de entrada
+<span class="nc" id="L53">            validateTokenizationRequest(request);</span>
+            
+            // Gerar token único
+<span class="nc" id="L56">            String token = generateSecureToken(request.isTestMode());</span>
+            
+            // Criar payload criptografado
+<span class="nc" id="L59">            String encryptedPayload = createEncryptedPayload(request);</span>
+            
+            // Armazenar no Azure Key Vault
+<span class="nc" id="L62">            secretClient.setSecret(token, encryptedPayload);</span>
+            
+            // Limpar dados sensíveis da memória
+<span class="nc" id="L65">            clearSensitiveData(request);</span>
+            
+            // Log sucesso da tokenização
+<span class="nc" id="L68">            auditLogger.logTokenizationSuccess(requestId, token, request.getMerchantId());</span>
+            
+<span class="nc" id="L70">            return TokenizationResponse.builder()</span>
+<span class="nc" id="L71">                .token(token)</span>
+<span class="nc" id="L72">                .tokenType(&quot;IRREVERSIBLE&quot;)</span>
+<span class="nc" id="L73">                .expiresAt(calculateExpirationTime())</span>
+<span class="nc" id="L74">                .requestId(requestId)</span>
+<span class="nc" id="L75">                .build();</span>
+                
+<span class="nc" id="L77">        } catch (Exception e) {</span>
+<span class="nc" id="L78">            auditLogger.logTokenizationFailure(requestId, request.getMerchantId(), e);</span>
+<span class="nc" id="L79">            throw new TokenizationException(&quot;Tokenization failed&quot;, e);</span>
+        }
+    }
+    
+    /**
+     * Destokeniza dados para processamento de pagamento
+     * @param request Requisição de destokenização
+     * @return Dados originais do cartão
+     */
+    public DetokenizationResponse detokenize(DetokenizationRequest request) {
+<span class="nc" id="L89">        String requestId = UUID.randomUUID().toString();</span>
+        
+        try {
+            // Log início da destokenização
+<span class="nc" id="L93">            auditLogger.logDetokenizationStart(requestId, request.getToken(), request.getMerchantId());</span>
+            
+            // Validar token
+<span class="nc" id="L96">            validateDetokenizationRequest(request);</span>
+            
+            // Recuperar dados do Azure Key Vault
+<span class="nc" id="L99">            KeyVaultSecret secret = secretClient.getSecret(request.getToken());</span>
+            
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (secret == null) {</span>
+<span class="nc" id="L102">                throw new TokenizationException(&quot;Token not found or expired&quot;);</span>
+            }
+            
+            // Descriptografar payload
+<span class="nc" id="L106">            TokenizedData data = decryptPayload(secret.getValue());</span>
+            
+            // Validar propriedade do token
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            if (!data.getMerchantId().equals(request.getMerchantId())) {</span>
+<span class="nc" id="L110">                auditLogger.logUnauthorizedDetokenization(requestId, request.getToken(), request.getMerchantId());</span>
+<span class="nc" id="L111">                throw new TokenizationException(&quot;Unauthorized token access&quot;);</span>
+            }
+            
+            // Log sucesso da destokenização
+<span class="nc" id="L115">            auditLogger.logDetokenizationSuccess(requestId, request.getToken(), request.getMerchantId());</span>
+            
+<span class="nc" id="L117">            DetokenizationResponse response = DetokenizationResponse.builder()</span>
+<span class="nc" id="L118">                .pan(data.getPan())</span>
+<span class="nc" id="L119">                .cvv(data.getCvv())</span>
+<span class="nc" id="L120">                .expiryDate(data.getExpiryDate())</span>
+<span class="nc" id="L121">                .cardholderName(data.getCardholderName())</span>
+<span class="nc" id="L122">                .requestId(requestId)</span>
+<span class="nc" id="L123">                .build();</span>
+            
+            // Agendar limpeza dos dados após uso
+<span class="nc" id="L126">            scheduleDataClearing(response);</span>
+            
+<span class="nc" id="L128">            return response;</span>
+            
+<span class="nc" id="L130">        } catch (Exception e) {</span>
+<span class="nc" id="L131">            auditLogger.logDetokenizationFailure(requestId, request.getToken(), request.getMerchantId(), e);</span>
+<span class="nc" id="L132">            throw new TokenizationException(&quot;Detokenization failed&quot;, e);</span>
+        }
+    }
+    
+    private void validateTokenizationRequest(TokenizationRequest request) {
+<span class="nc bnc" id="L137" title="All 6 branches missed.">        if (request.getPan() == null || request.getPan().length() &lt; 13 || request.getPan().length() &gt; 19) {</span>
+<span class="nc" id="L138">            throw new IllegalArgumentException(&quot;Invalid PAN format&quot;);</span>
+        }
+        
+<span class="nc bnc" id="L141" title="All 6 branches missed.">        if (request.getCvv() == null || request.getCvv().length() &lt; 3 || request.getCvv().length() &gt; 4) {</span>
+<span class="nc" id="L142">            throw new IllegalArgumentException(&quot;Invalid CVV format&quot;);</span>
+        }
+        
+<span class="nc bnc" id="L145" title="All 4 branches missed.">        if (request.getMerchantId() == null || request.getMerchantId().trim().isEmpty()) {</span>
+<span class="nc" id="L146">            throw new IllegalArgumentException(&quot;Merchant ID is required&quot;);</span>
+        }
+        
+        // Validar algoritmo de Luhn
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (!isValidLuhn(request.getPan())) {</span>
+<span class="nc" id="L151">            throw new IllegalArgumentException(&quot;Invalid PAN checksum&quot;);</span>
+        }
+<span class="nc" id="L153">    }</span>
+    
+    private void validateDetokenizationRequest(DetokenizationRequest request) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (request.getToken() == null || </span>
+<span class="nc bnc" id="L157" title="All 4 branches missed.">            (!request.getToken().startsWith(TOKEN_PREFIX) &amp;&amp; !request.getToken().startsWith(TOKEN_TEST_PREFIX))) {</span>
+<span class="nc" id="L158">            throw new IllegalArgumentException(&quot;Invalid token format&quot;);</span>
+        }
+        
+<span class="nc bnc" id="L161" title="All 4 branches missed.">        if (request.getMerchantId() == null || request.getMerchantId().trim().isEmpty()) {</span>
+<span class="nc" id="L162">            throw new IllegalArgumentException(&quot;Merchant ID is required&quot;);</span>
+        }
+        
+<span class="nc bnc" id="L165" title="All 4 branches missed.">        if (request.getPurpose() == null || request.getPurpose().trim().isEmpty()) {</span>
+<span class="nc" id="L166">            throw new IllegalArgumentException(&quot;Purpose is required for detokenization&quot;);</span>
+        }
+<span class="nc" id="L168">    }</span>
+    
+    private String generateSecureToken(boolean testMode) {
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        String prefix = testMode ? TOKEN_TEST_PREFIX : TOKEN_PREFIX;</span>
+        
+        // Gerar 32 bytes aleatórios
+<span class="nc" id="L174">        byte[] randomBytes = new byte[32];</span>
+<span class="nc" id="L175">        secureRandom.nextBytes(randomBytes);</span>
+        
+        // Converter para hex
+<span class="nc" id="L178">        StringBuilder hexString = new StringBuilder();</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        for (byte b : randomBytes) {</span>
+<span class="nc" id="L180">            String hex = Integer.toHexString(0xff &amp; b);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (hex.length() == 1) {</span>
+<span class="nc" id="L182">                hexString.append('0');</span>
+            }
+<span class="nc" id="L184">            hexString.append(hex);</span>
+        }
+        
+<span class="nc" id="L187">        return prefix + hexString.toString();</span>
+    }
+    
+    private String createEncryptedPayload(TokenizationRequest request) {
+        // Em implementação real, usar AES-256-GCM
+        // Por simplicidade, usando Base64 (NUNCA fazer isso em produção)
+<span class="nc" id="L193">        TokenizedData data = TokenizedData.builder()</span>
+<span class="nc" id="L194">            .pan(request.getPan())</span>
+<span class="nc" id="L195">            .cvv(request.getCvv())</span>
+<span class="nc" id="L196">            .expiryDate(request.getExpiryDate())</span>
+<span class="nc" id="L197">            .cardholderName(request.getCardholderName())</span>
+<span class="nc" id="L198">            .merchantId(request.getMerchantId())</span>
+<span class="nc" id="L199">            .tokenizedAt(Instant.now())</span>
+<span class="nc" id="L200">            .build();</span>
+        
+        // Simular criptografia (implementar AES-256-GCM em produção)
+<span class="nc" id="L203">        return java.util.Base64.getEncoder().encodeToString(data.toString().getBytes());</span>
+    }
+    
+    private TokenizedData decryptPayload(String encryptedPayload) {
+        // Simular descriptografia (implementar AES-256-GCM em produção)
+<span class="nc" id="L208">        String decrypted = new String(java.util.Base64.getDecoder().decode(encryptedPayload));</span>
+        
+        // Parse dos dados (implementar JSON parsing em produção)
+<span class="nc" id="L211">        return TokenizedData.fromString(decrypted);</span>
+    }
+    
+    private void clearSensitiveData(TokenizationRequest request) {
+        // Sobrescrever strings sensíveis
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if (request.getPan() != null) {</span>
+<span class="nc" id="L217">            char[] panArray = request.getPan().toCharArray();</span>
+<span class="nc" id="L218">            Arrays.fill(panArray, '0');</span>
+<span class="nc" id="L219">            request.setPan(null);</span>
+        }
+        
+<span class="nc bnc" id="L222" title="All 2 branches missed.">        if (request.getCvv() != null) {</span>
+<span class="nc" id="L223">            char[] cvvArray = request.getCvv().toCharArray();</span>
+<span class="nc" id="L224">            Arrays.fill(cvvArray, '0');</span>
+<span class="nc" id="L225">            request.setCvv(null);</span>
+        }
+        
+        // Forçar garbage collection
+<span class="nc" id="L229">        System.gc();</span>
+<span class="nc" id="L230">    }</span>
+    
+    private void scheduleDataClearing(DetokenizationResponse response) {
+        // Agendar limpeza após 5 minutos (tempo máximo de uso)
+        // Em produção, usar scheduler apropriado
+<span class="nc" id="L235">        new Thread(() -&gt; {</span>
+            try {
+<span class="nc" id="L237">                Thread.sleep(300000); // 5 minutos</span>
+<span class="nc" id="L238">                clearDetokenizedData(response);</span>
+<span class="nc" id="L239">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L240">                Thread.currentThread().interrupt();</span>
+<span class="nc" id="L241">            }</span>
+<span class="nc" id="L242">        }).start();</span>
+<span class="nc" id="L243">    }</span>
+    
+    private void clearDetokenizedData(DetokenizationResponse response) {
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if (response.getPan() != null) {</span>
+<span class="nc" id="L247">            char[] panArray = response.getPan().toCharArray();</span>
+<span class="nc" id="L248">            Arrays.fill(panArray, '0');</span>
+<span class="nc" id="L249">            response.setPan(null);</span>
+        }
+        
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        if (response.getCvv() != null) {</span>
+<span class="nc" id="L253">            char[] cvvArray = response.getCvv().toCharArray();</span>
+<span class="nc" id="L254">            Arrays.fill(cvvArray, '0');</span>
+<span class="nc" id="L255">            response.setCvv(null);</span>
+        }
+        
+<span class="nc" id="L258">        System.gc();</span>
+<span class="nc" id="L259">    }</span>
+    
+    private boolean isValidLuhn(String pan) {
+<span class="nc" id="L262">        int sum = 0;</span>
+<span class="nc" id="L263">        boolean alternate = false;</span>
+        
+<span class="nc bnc" id="L265" title="All 2 branches missed.">        for (int i = pan.length() - 1; i &gt;= 0; i--) {</span>
+<span class="nc" id="L266">            int n = Integer.parseInt(pan.substring(i, i + 1));</span>
+            
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (alternate) {</span>
+<span class="nc" id="L269">                n *= 2;</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                if (n &gt; 9) {</span>
+<span class="nc" id="L271">                    n = (n % 10) + 1;</span>
+                }
+            }
+            
+<span class="nc" id="L275">            sum += n;</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            alternate = !alternate;</span>
+        }
+        
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        return (sum % 10 == 0);</span>
+    }
+    
+    private Instant calculateExpirationTime() {
+        // Tokens expiram em 1 ano
+<span class="nc" id="L284">        return Instant.now().plusSeconds(365 * 24 * 60 * 60);</span>
+    }
+    
+    /**
+     * Classe interna para dados tokenizados
+     */
+    private static class TokenizedData {
+        private String pan;
+        private String cvv;
+        private String expiryDate;
+        private String cardholderName;
+        private String merchantId;
+        private Instant tokenizedAt;
+        
+        // Builder pattern e métodos de serialização
+        public static TokenizedDataBuilder builder() {
+<span class="nc" id="L300">            return new TokenizedDataBuilder();</span>
+        }
+        
+        public static TokenizedData fromString(String data) {
+            // Implementar parsing real em produção
+<span class="nc" id="L305">            return new TokenizedData();</span>
+        }
+        
+        // Getters
+<span class="nc" id="L309">        public String getPan() { return pan; }</span>
+<span class="nc" id="L310">        public String getCvv() { return cvv; }</span>
+<span class="nc" id="L311">        public String getExpiryDate() { return expiryDate; }</span>
+<span class="nc" id="L312">        public String getCardholderName() { return cardholderName; }</span>
+<span class="nc" id="L313">        public String getMerchantId() { return merchantId; }</span>
+<span class="nc" id="L314">        public Instant getTokenizedAt() { return tokenizedAt; }</span>
+        
+<span class="nc" id="L316">        public static class TokenizedDataBuilder {</span>
+<span class="nc" id="L317">            private TokenizedData data = new TokenizedData();</span>
+            
+<span class="nc" id="L319">            public TokenizedDataBuilder pan(String pan) { data.pan = pan; return this; }</span>
+<span class="nc" id="L320">            public TokenizedDataBuilder cvv(String cvv) { data.cvv = cvv; return this; }</span>
+<span class="nc" id="L321">            public TokenizedDataBuilder expiryDate(String expiryDate) { data.expiryDate = expiryDate; return this; }</span>
+<span class="nc" id="L322">            public TokenizedDataBuilder cardholderName(String cardholderName) { data.cardholderName = cardholderName; return this; }</span>
+<span class="nc" id="L323">            public TokenizedDataBuilder merchantId(String merchantId) { data.merchantId = merchantId; return this; }</span>
+<span class="nc" id="L324">            public TokenizedDataBuilder tokenizedAt(Instant tokenizedAt) { data.tokenizedAt = tokenizedAt; return this; }</span>
+            
+<span class="nc" id="L326">            public TokenizedData build() { return data; }</span>
+        }
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

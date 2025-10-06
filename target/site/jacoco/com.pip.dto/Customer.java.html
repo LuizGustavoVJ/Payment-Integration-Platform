@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Customer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">Customer.java</span></div><h1>Customer.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+/**
+ * DTO para dados do cliente
+ */
+public class Customer {
+    
+    private String name;
+    private String email;
+    private String document;
+    private String phone;
+    
+<span class="nc" id="L13">    public Customer() {</span>
+<span class="nc" id="L14">    }</span>
+    
+<span class="nc" id="L16">    public Customer(String name, String email, String document) {</span>
+<span class="nc" id="L17">        this.name = name;</span>
+<span class="nc" id="L18">        this.email = email;</span>
+<span class="nc" id="L19">        this.document = document;</span>
+<span class="nc" id="L20">    }</span>
+    
+    // Getters and Setters
+    public String getName() {
+<span class="nc" id="L24">        return name;</span>
+    }
+    
+    public void setName(String name) {
+<span class="nc" id="L28">        this.name = name;</span>
+<span class="nc" id="L29">    }</span>
+    
+    public String getEmail() {
+<span class="nc" id="L32">        return email;</span>
+    }
+    
+    public void setEmail(String email) {
+<span class="nc" id="L36">        this.email = email;</span>
+<span class="nc" id="L37">    }</span>
+    
+    public String getDocument() {
+<span class="nc" id="L40">        return document;</span>
+    }
+    
+    public void setDocument(String document) {
+<span class="nc" id="L44">        this.document = document;</span>
+<span class="nc" id="L45">    }</span>
+    
+    public String getPhone() {
+<span class="nc" id="L48">        return phone;</span>
+    }
+    
+    public void setPhone(String phone) {
+<span class="nc" id="L52">        this.phone = phone;</span>
+<span class="nc" id="L53">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

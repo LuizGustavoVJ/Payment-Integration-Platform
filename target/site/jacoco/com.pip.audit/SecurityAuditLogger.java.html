@@ -1,0 +1,587 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityAuditLogger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.audit</a> &gt; <span class="el_source">SecurityAuditLogger.java</span></div><h1>SecurityAuditLogger.java</h1><pre class="source lang-java linenums">package com.pip.audit;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.dto.AuditEvent;
+import com.pip.dto.SecurityEventType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Sistema centralizado de auditoria e logging de segurança
+ * Implementa conformidade PCI DSS para rastreamento de eventos
+ */
+@Service
+<span class="nc" id="L24">public class SecurityAuditLogger {</span>
+    
+<span class="nc" id="L26">    private static final Logger securityLogger = LoggerFactory.getLogger(&quot;SECURITY_AUDIT&quot;);</span>
+<span class="nc" id="L27">    private static final Logger logger = LoggerFactory.getLogger(SecurityAuditLogger.class);</span>
+    
+    @Autowired
+    private KafkaTemplate&lt;String, AuditEvent&gt; kafkaTemplate;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
+    
+    /**
+     * Log de início de tokenização
+     */
+    public void logTokenizationStart(String requestId, String merchantId) {
+<span class="nc" id="L39">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.TOKENIZATION_START,
+            merchantId,
+<span class="nc" id="L42">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+                &quot;action&quot;, &quot;TOKENIZATION_INITIATED&quot;
+            )
+        );
+        
+<span class="nc" id="L48">        logSecurityEvent(event);</span>
+<span class="nc" id="L49">    }</span>
+    
+    /**
+     * Log de tokenização bem-sucedida
+     */
+    public void logTokenizationSuccess(String requestId, String token, String merchantId) {
+<span class="nc" id="L55">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.TOKENIZATION_SUCCESS,
+            merchantId,
+<span class="nc" id="L58">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+<span class="nc" id="L60">                &quot;tokenId&quot;, maskToken(token),</span>
+                &quot;action&quot;, &quot;TOKENIZATION_COMPLETED&quot;,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L66">        logSecurityEvent(event);</span>
+<span class="nc" id="L67">    }</span>
+    
+    /**
+     * Log de falha na tokenização
+     */
+    public void logTokenizationFailure(String requestId, String merchantId, Exception error) {
+<span class="nc" id="L73">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.TOKENIZATION_FAILURE,
+            merchantId,
+<span class="nc" id="L76">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+                &quot;action&quot;, &quot;TOKENIZATION_FAILED&quot;,
+                &quot;result&quot;, &quot;FAILURE&quot;,
+<span class="nc" id="L80">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L81">                &quot;errorMessage&quot;, error.getMessage()</span>
+            )
+        );
+        
+<span class="nc" id="L85">        logSecurityEvent(event);</span>
+<span class="nc" id="L86">    }</span>
+    
+    /**
+     * Log de início de destokenização
+     */
+    public void logDetokenizationStart(String requestId, String token, String merchantId) {
+<span class="nc" id="L92">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.DETOKENIZATION_START,
+            merchantId,
+<span class="nc" id="L95">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+<span class="nc" id="L97">                &quot;tokenId&quot;, maskToken(token),</span>
+                &quot;action&quot;, &quot;DETOKENIZATION_INITIATED&quot;
+            )
+        );
+        
+<span class="nc" id="L102">        logSecurityEvent(event);</span>
+<span class="nc" id="L103">    }</span>
+    
+    /**
+     * Log de destokenização bem-sucedida
+     */
+    public void logDetokenizationSuccess(String requestId, String token, String merchantId) {
+<span class="nc" id="L109">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.DETOKENIZATION_SUCCESS,
+            merchantId,
+<span class="nc" id="L112">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+<span class="nc" id="L114">                &quot;tokenId&quot;, maskToken(token),</span>
+                &quot;action&quot;, &quot;DETOKENIZATION_COMPLETED&quot;,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L120">        logSecurityEvent(event);</span>
+<span class="nc" id="L121">    }</span>
+    
+    /**
+     * Log de falha na destokenização
+     */
+    public void logDetokenizationFailure(String requestId, String token, String merchantId, Exception error) {
+<span class="nc" id="L127">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.DETOKENIZATION_FAILURE,
+            merchantId,
+<span class="nc" id="L130">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+<span class="nc" id="L132">                &quot;tokenId&quot;, maskToken(token),</span>
+                &quot;action&quot;, &quot;DETOKENIZATION_FAILED&quot;,
+                &quot;result&quot;, &quot;FAILURE&quot;,
+<span class="nc" id="L135">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L136">                &quot;errorMessage&quot;, error.getMessage()</span>
+            )
+        );
+        
+<span class="nc" id="L140">        logSecurityEvent(event);</span>
+<span class="nc" id="L141">    }</span>
+    
+    /**
+     * Log de tentativa de destokenização não autorizada
+     */
+    public void logUnauthorizedDetokenization(String requestId, String token, String merchantId) {
+<span class="nc" id="L147">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.UNAUTHORIZED_ACCESS,
+            merchantId,
+<span class="nc" id="L150">            Map.of(</span>
+                &quot;requestId&quot;, requestId,
+<span class="nc" id="L152">                &quot;tokenId&quot;, maskToken(token),</span>
+                &quot;action&quot;, &quot;UNAUTHORIZED_DETOKENIZATION&quot;,
+                &quot;result&quot;, &quot;BLOCKED&quot;,
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L159">        logSecurityEvent(event);</span>
+<span class="nc" id="L160">    }</span>
+    
+    /**
+     * Log de uso de API Key
+     */
+    public void logApiKeyUsage(String merchantId, String apiKey) {
+<span class="nc" id="L166">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_USAGE,
+            merchantId,
+<span class="nc" id="L169">            Map.of(</span>
+<span class="nc" id="L170">                &quot;apiKeyId&quot;, maskApiKey(apiKey),</span>
+                &quot;action&quot;, &quot;API_KEY_VALIDATED&quot;,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L176">        logSecurityEvent(event);</span>
+<span class="nc" id="L177">    }</span>
+    
+    /**
+     * Log de tentativa de API Key inválida
+     */
+    public void logInvalidApiKeyAttempt(String apiKey, String reason) {
+<span class="nc" id="L183">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.INVALID_API_KEY,
+            &quot;UNKNOWN&quot;,
+<span class="nc" id="L186">            Map.of(</span>
+<span class="nc" id="L187">                &quot;apiKeyId&quot;, maskApiKey(apiKey),</span>
+                &quot;action&quot;, &quot;API_KEY_VALIDATION_FAILED&quot;,
+                &quot;result&quot;, &quot;FAILURE&quot;,
+                &quot;reason&quot;, reason,
+                &quot;severity&quot;, &quot;MEDIUM&quot;
+            )
+        );
+        
+<span class="nc" id="L195">        logSecurityEvent(event);</span>
+<span class="nc" id="L196">    }</span>
+    
+    /**
+     * Log de rate limit excedido
+     */
+    public void logRateLimitExceeded(String apiKey, String merchantId) {
+<span class="nc" id="L202">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.RATE_LIMIT_EXCEEDED,
+            merchantId,
+<span class="nc" id="L205">            Map.of(</span>
+<span class="nc" id="L206">                &quot;apiKeyId&quot;, maskApiKey(apiKey),</span>
+                &quot;action&quot;, &quot;RATE_LIMIT_EXCEEDED&quot;,
+                &quot;result&quot;, &quot;BLOCKED&quot;,
+                &quot;severity&quot;, &quot;MEDIUM&quot;
+            )
+        );
+        
+<span class="nc" id="L213">        logSecurityEvent(event);</span>
+<span class="nc" id="L214">    }</span>
+    
+    /**
+     * Log de geração de API Key
+     */
+    public void logApiKeyGeneration(String merchantId, String environment) {
+<span class="nc" id="L220">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_GENERATED,
+            merchantId,
+<span class="nc" id="L223">            Map.of(</span>
+                &quot;action&quot;, &quot;API_KEY_GENERATED&quot;,
+                &quot;environment&quot;, environment,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L230">        logSecurityEvent(event);</span>
+<span class="nc" id="L231">    }</span>
+    
+    /**
+     * Log de rotação de API Key
+     */
+    public void logApiKeyRotation(String merchantId, String oldApiKey) {
+<span class="nc" id="L237">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_ROTATED,
+            merchantId,
+<span class="nc" id="L240">            Map.of(</span>
+<span class="nc" id="L241">                &quot;oldApiKeyId&quot;, maskApiKey(oldApiKey),</span>
+                &quot;action&quot;, &quot;API_KEY_ROTATED&quot;,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L247">        logSecurityEvent(event);</span>
+<span class="nc" id="L248">    }</span>
+    
+    /**
+     * Log de necessidade de rotação de API Key
+     */
+    public void logApiKeyRotationNeeded(String merchantId) {
+<span class="nc" id="L254">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_ROTATION_NEEDED,
+            merchantId,
+<span class="nc" id="L257">            Map.of(</span>
+                &quot;action&quot;, &quot;API_KEY_ROTATION_NEEDED&quot;,
+                &quot;severity&quot;, &quot;LOW&quot;
+            )
+        );
+        
+<span class="nc" id="L263">        logSecurityEvent(event);</span>
+<span class="nc" id="L264">    }</span>
+    
+    /**
+     * Log de revogação de API Key
+     */
+    public void logApiKeyRevocation(String merchantId, String apiKey) {
+<span class="nc" id="L270">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_REVOKED,
+            merchantId,
+<span class="nc" id="L273">            Map.of(</span>
+<span class="nc" id="L274">                &quot;apiKeyId&quot;, maskApiKey(apiKey),</span>
+                &quot;action&quot;, &quot;API_KEY_REVOKED&quot;,
+                &quot;result&quot;, &quot;SUCCESS&quot;
+            )
+        );
+        
+<span class="nc" id="L280">        logSecurityEvent(event);</span>
+<span class="nc" id="L281">    }</span>
+    
+    /**
+     * Log de erro na validação de API Key
+     */
+    public void logApiKeyValidationError(String apiKey, Exception error) {
+<span class="nc" id="L287">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_VALIDATION_ERROR,
+            &quot;UNKNOWN&quot;,
+<span class="nc" id="L290">            Map.of(</span>
+<span class="nc" id="L291">                &quot;apiKeyId&quot;, maskApiKey(apiKey),</span>
+                &quot;action&quot;, &quot;API_KEY_VALIDATION_ERROR&quot;,
+                &quot;result&quot;, &quot;ERROR&quot;,
+<span class="nc" id="L294">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L295">                &quot;errorMessage&quot;, error.getMessage(),</span>
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L300">        logSecurityEvent(event);</span>
+<span class="nc" id="L301">    }</span>
+    
+    /**
+     * Log de erro na geração de API Key
+     */
+    public void logApiKeyGenerationError(String merchantId, String environment, Exception error) {
+<span class="nc" id="L307">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_GENERATION_ERROR,
+            merchantId,
+<span class="nc" id="L310">            Map.of(</span>
+                &quot;action&quot;, &quot;API_KEY_GENERATION_ERROR&quot;,
+                &quot;environment&quot;, environment,
+                &quot;result&quot;, &quot;ERROR&quot;,
+<span class="nc" id="L314">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L315">                &quot;errorMessage&quot;, error.getMessage(),</span>
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L320">        logSecurityEvent(event);</span>
+<span class="nc" id="L321">    }</span>
+    
+    /**
+     * Log de erro na rotação de API Key
+     */
+    public void logApiKeyRotationError(String merchantId, Exception error) {
+<span class="nc" id="L327">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_ROTATION_ERROR,
+            merchantId,
+<span class="nc" id="L330">            Map.of(</span>
+                &quot;action&quot;, &quot;API_KEY_ROTATION_ERROR&quot;,
+                &quot;result&quot;, &quot;ERROR&quot;,
+<span class="nc" id="L333">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L334">                &quot;errorMessage&quot;, error.getMessage(),</span>
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L339">        logSecurityEvent(event);</span>
+<span class="nc" id="L340">    }</span>
+    
+    /**
+     * Log de erro na revogação de API Key
+     */
+    public void logApiKeyRevocationError(String merchantId, Exception error) {
+<span class="nc" id="L346">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.API_KEY_REVOCATION_ERROR,
+            merchantId,
+<span class="nc" id="L349">            Map.of(</span>
+                &quot;action&quot;, &quot;API_KEY_REVOCATION_ERROR&quot;,
+                &quot;result&quot;, &quot;ERROR&quot;,
+<span class="nc" id="L352">                &quot;errorType&quot;, error.getClass().getSimpleName(),</span>
+<span class="nc" id="L353">                &quot;errorMessage&quot;, error.getMessage(),</span>
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L358">        logSecurityEvent(event);</span>
+<span class="nc" id="L359">    }</span>
+    
+    /**
+     * Log de transação de pagamento
+     */
+    public void logPaymentTransaction(String merchantId, String transactionId, String gatewayUsed, String result) {
+<span class="nc" id="L365">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.PAYMENT_TRANSACTION,
+            merchantId,
+<span class="nc" id="L368">            Map.of(</span>
+                &quot;transactionId&quot;, transactionId,
+                &quot;gatewayUsed&quot;, gatewayUsed,
+                &quot;action&quot;, &quot;PAYMENT_PROCESSED&quot;,
+                &quot;result&quot;, result
+            )
+        );
+        
+<span class="nc" id="L376">        logSecurityEvent(event);</span>
+<span class="nc" id="L377">    }</span>
+    
+    /**
+     * Log de acesso não autorizado
+     */
+    public void logUnauthorizedAccess(String ipAddress) {
+<span class="nc" id="L383">        AuditEvent event = createAuditEvent(</span>
+            SecurityEventType.UNAUTHORIZED_ACCESS,
+            &quot;UNKNOWN&quot;,
+<span class="nc" id="L386">            Map.of(</span>
+                &quot;ipAddress&quot;, ipAddress,
+                &quot;action&quot;, &quot;UNAUTHORIZED_ACCESS_ATTEMPT&quot;,
+                &quot;result&quot;, &quot;BLOCKED&quot;,
+                &quot;severity&quot;, &quot;HIGH&quot;
+            )
+        );
+        
+<span class="nc" id="L394">        logSecurityEvent(event);</span>
+<span class="nc" id="L395">    }</span>
+    
+    private AuditEvent createAuditEvent(SecurityEventType eventType, String merchantId, Map&lt;String, Object&gt; data) {
+<span class="nc" id="L398">        String eventId = UUID.randomUUID().toString();</span>
+<span class="nc" id="L399">        Instant timestamp = Instant.now();</span>
+        
+        // Adicionar informações de contexto
+<span class="nc" id="L402">        Map&lt;String, Object&gt; enrichedData = new HashMap&lt;&gt;(data);</span>
+<span class="nc" id="L403">        enrichedData.put(&quot;source&quot;, &quot;pip-api&quot;);</span>
+<span class="nc" id="L404">        enrichedData.put(&quot;version&quot;, &quot;1.0.0&quot;);</span>
+        
+        // Calcular checksum para integridade
+<span class="nc" id="L407">        String checksum = calculateChecksum(eventId, timestamp, eventType, merchantId, enrichedData);</span>
+        
+<span class="nc" id="L409">        AuditEvent event = new AuditEvent();</span>
+<span class="nc" id="L410">        event.setEventType(eventType.name());</span>
+<span class="nc" id="L411">        event.setUserId(merchantId);</span>
+<span class="nc" id="L412">        event.setTimestamp(timestamp.atZone(java.time.ZoneId.systemDefault()));</span>
+<span class="nc" id="L413">        event.setMetadata(enrichedData);</span>
+<span class="nc" id="L414">        return event;</span>
+    }
+    
+    private void logSecurityEvent(AuditEvent event) {
+        try {
+            // Configurar MDC para logging estruturado
+<span class="nc" id="L420">            MDC.put(&quot;eventType&quot;, event.getEventType());</span>
+<span class="nc" id="L421">            MDC.put(&quot;userId&quot;, event.getUserId());</span>
+<span class="nc" id="L422">            MDC.put(&quot;timestamp&quot;, event.getTimestamp().toString());</span>
+            
+            // Log local estruturado
+<span class="nc" id="L425">            securityLogger.info(&quot;SECURITY_EVENT: {}&quot;, objectMapper.writeValueAsString(event));</span>
+            
+            // Enviar para Kafka para processamento assíncrono
+<span class="nc" id="L428">            kafkaTemplate.send(&quot;security-events&quot;, event.getUserId(), event);</span>
+            
+<span class="nc" id="L430">        } catch (Exception e) {</span>
+<span class="nc" id="L431">            logger.error(&quot;Failed to log security event&quot;, e);</span>
+        } finally {
+            // Limpar MDC
+<span class="nc" id="L434">            MDC.clear();</span>
+        }
+<span class="nc" id="L436">    }</span>
+    
+    private String maskToken(String token) {
+<span class="nc bnc" id="L439" title="All 4 branches missed.">        if (token == null || token.length() &lt; 8) {</span>
+<span class="nc" id="L440">            return &quot;****&quot;;</span>
+        }
+        
+<span class="nc" id="L443">        return token.substring(0, 8) + &quot;****&quot; + token.substring(token.length() - 4);</span>
+    }
+    
+    private String maskApiKey(String apiKey) {
+<span class="nc bnc" id="L447" title="All 4 branches missed.">        if (apiKey == null || apiKey.length() &lt; 12) {</span>
+<span class="nc" id="L448">            return &quot;****&quot;;</span>
+        }
+        
+<span class="nc" id="L451">        return apiKey.substring(0, 12) + &quot;****&quot;;</span>
+    }
+    
+    private String calculateChecksum(String eventId, Instant timestamp, SecurityEventType eventType, 
+                                   String merchantId, Map&lt;String, Object&gt; data) {
+        try {
+<span class="nc" id="L457">            String input = eventId + timestamp.toString() + eventType.toString() + </span>
+<span class="nc" id="L458">                          merchantId + data.toString();</span>
+            
+<span class="nc" id="L460">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="nc" id="L461">            byte[] hash = digest.digest(input.getBytes(&quot;UTF-8&quot;));</span>
+            
+<span class="nc" id="L463">            StringBuilder hexString = new StringBuilder();</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">            for (byte b : hash) {</span>
+<span class="nc" id="L465">                String hex = Integer.toHexString(0xff &amp; b);</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">                if (hex.length() == 1) {</span>
+<span class="nc" id="L467">                    hexString.append('0');</span>
+                }
+<span class="nc" id="L469">                hexString.append(hex);</span>
+            }
+            
+<span class="nc" id="L472">            return &quot;sha256:&quot; + hexString.toString();</span>
+            
+<span class="nc" id="L474">        } catch (Exception e) {</span>
+<span class="nc" id="L475">            logger.error(&quot;Failed to calculate checksum&quot;, e);</span>
+<span class="nc" id="L476">            return &quot;sha256:error&quot;;</span>
+        }
+    }
+    
+    // Métodos para Key Rotation Service
+    public void logKeyRotationCompleted(int rotatedCount, int failedCount) {
+<span class="nc" id="L482">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L483">        data.put(&quot;rotatedCount&quot;, rotatedCount);</span>
+<span class="nc" id="L484">        data.put(&quot;failedCount&quot;, failedCount);</span>
+        
+<span class="nc" id="L486">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_ROTATION, &quot;system&quot;, data);</span>
+<span class="nc" id="L487">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L489">        logger.info(&quot;Key rotation completed: {} rotated, {} failed&quot;, rotatedCount, failedCount);</span>
+<span class="nc" id="L490">    }</span>
+    
+    public void logKeyRotationFailed(Exception e) {
+<span class="nc" id="L493">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L494">        data.put(&quot;error&quot;, e.getMessage());</span>
+<span class="nc" id="L495">        data.put(&quot;errorType&quot;, e.getClass().getSimpleName());</span>
+        
+<span class="nc" id="L497">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_ROTATION_FAILED, &quot;system&quot;, data);</span>
+<span class="nc" id="L498">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L500">        logger.error(&quot;Key rotation failed&quot;, e);</span>
+<span class="nc" id="L501">    }</span>
+    
+    public void logSecretRotated(String secretName) {
+<span class="nc" id="L504">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L505">        data.put(&quot;secretName&quot;, secretName);</span>
+        
+<span class="nc" id="L507">        AuditEvent event = createAuditEvent(SecurityEventType.SECRET_ROTATED, &quot;system&quot;, data);</span>
+<span class="nc" id="L508">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L510">        logger.info(&quot;Secret rotated: {}&quot;, secretName);</span>
+<span class="nc" id="L511">    }</span>
+    
+    public void logSecretRotationFailed(String secretName, Exception e) {
+<span class="nc" id="L514">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L515">        data.put(&quot;secretName&quot;, secretName);</span>
+<span class="nc" id="L516">        data.put(&quot;error&quot;, e.getMessage());</span>
+<span class="nc" id="L517">        data.put(&quot;errorType&quot;, e.getClass().getSimpleName());</span>
+        
+<span class="nc" id="L519">        AuditEvent event = createAuditEvent(SecurityEventType.SECRET_ROTATION_FAILED, &quot;system&quot;, data);</span>
+<span class="nc" id="L520">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L522">        logger.error(&quot;Secret rotation failed for: {}&quot;, secretName, e);</span>
+<span class="nc" id="L523">    }</span>
+    
+    /**
+     * Log de backup completado
+     */
+    public void logBackupCompleted(String backupPath, int secretCount) {
+<span class="nc" id="L529">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L530">        data.put(&quot;backupPath&quot;, backupPath);</span>
+<span class="nc" id="L531">        data.put(&quot;secretCount&quot;, secretCount);</span>
+<span class="nc" id="L532">        data.put(&quot;action&quot;, &quot;BACKUP_COMPLETED&quot;);</span>
+        
+<span class="nc" id="L534">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_BACKUP, &quot;system&quot;, data);</span>
+<span class="nc" id="L535">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L537">        logger.info(&quot;Backup completed: {} secrets backed up to {}&quot;, secretCount, backupPath);</span>
+<span class="nc" id="L538">    }</span>
+    
+    /**
+     * Log de falha no backup
+     */
+    public void logBackupFailed(Exception e) {
+<span class="nc" id="L544">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L545">        data.put(&quot;error&quot;, e.getMessage());</span>
+<span class="nc" id="L546">        data.put(&quot;errorType&quot;, e.getClass().getSimpleName());</span>
+<span class="nc" id="L547">        data.put(&quot;action&quot;, &quot;BACKUP_FAILED&quot;);</span>
+        
+<span class="nc" id="L549">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_BACKUP, &quot;system&quot;, data);</span>
+<span class="nc" id="L550">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L552">        logger.error(&quot;Backup failed&quot;, e);</span>
+<span class="nc" id="L553">    }</span>
+    
+    /**
+     * Log de recuperação completada
+     */
+    public void logRecoveryCompleted(String backupPath, int secretCount) {
+<span class="nc" id="L559">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L560">        data.put(&quot;backupPath&quot;, backupPath);</span>
+<span class="nc" id="L561">        data.put(&quot;secretCount&quot;, secretCount);</span>
+<span class="nc" id="L562">        data.put(&quot;action&quot;, &quot;RECOVERY_COMPLETED&quot;);</span>
+        
+<span class="nc" id="L564">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_RECOVERY, &quot;system&quot;, data);</span>
+<span class="nc" id="L565">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L567">        logger.info(&quot;Recovery completed: {} secrets recovered from {}&quot;, secretCount, backupPath);</span>
+<span class="nc" id="L568">    }</span>
+    
+    /**
+     * Log de falha na recuperação
+     */
+    public void logRecoveryFailed(String backupPath, Exception e) {
+<span class="nc" id="L574">        Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L575">        data.put(&quot;backupPath&quot;, backupPath);</span>
+<span class="nc" id="L576">        data.put(&quot;error&quot;, e.getMessage());</span>
+<span class="nc" id="L577">        data.put(&quot;errorType&quot;, e.getClass().getSimpleName());</span>
+<span class="nc" id="L578">        data.put(&quot;action&quot;, &quot;RECOVERY_FAILED&quot;);</span>
+        
+<span class="nc" id="L580">        AuditEvent event = createAuditEvent(SecurityEventType.KEY_RECOVERY, &quot;system&quot;, data);</span>
+<span class="nc" id="L581">        logSecurityEvent(event);</span>
+        
+<span class="nc" id="L583">        logger.error(&quot;Recovery failed from: {}&quot;, backupPath, e);</span>
+<span class="nc" id="L584">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

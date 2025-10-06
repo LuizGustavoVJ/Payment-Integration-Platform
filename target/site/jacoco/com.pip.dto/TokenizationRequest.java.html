@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenizationRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">TokenizationRequest.java</span></div><h1>TokenizationRequest.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+/**
+ * DTO para requisição de tokenização
+ */
+public class TokenizationRequest {
+    
+    @NotBlank(message = &quot;PAN is required&quot;)
+    @Pattern(regexp = &quot;^[0-9]{13,19}$&quot;, message = &quot;Invalid PAN format&quot;)
+    private String pan;
+    
+    @NotBlank(message = &quot;CVV is required&quot;)
+    @Pattern(regexp = &quot;^[0-9]{3,4}$&quot;, message = &quot;Invalid CVV format&quot;)
+    private String cvv;
+    
+    @NotBlank(message = &quot;Expiry date is required&quot;)
+    @Pattern(regexp = &quot;^(0[1-9]|1[0-2])/[0-9]{2}$&quot;, message = &quot;Invalid expiry date format (MM/YY)&quot;)
+    private String expiryDate;
+    
+    @Size(max = 100, message = &quot;Cardholder name too long&quot;)
+    private String cardholderName;
+    
+    @NotBlank(message = &quot;Merchant ID is required&quot;)
+    private String merchantId;
+    
+<span class="nc" id="L30">    private boolean testMode = false;</span>
+    
+    // Constructors
+<span class="nc" id="L33">    public TokenizationRequest() {}</span>
+    
+<span class="nc" id="L35">    public TokenizationRequest(String pan, String cvv, String expiryDate, String cardholderName, String merchantId) {</span>
+<span class="nc" id="L36">        this.pan = pan;</span>
+<span class="nc" id="L37">        this.cvv = cvv;</span>
+<span class="nc" id="L38">        this.expiryDate = expiryDate;</span>
+<span class="nc" id="L39">        this.cardholderName = cardholderName;</span>
+<span class="nc" id="L40">        this.merchantId = merchantId;</span>
+<span class="nc" id="L41">    }</span>
+    
+    // Getters and Setters
+    public String getPan() {
+<span class="nc" id="L45">        return pan;</span>
+    }
+    
+    public void setPan(String pan) {
+<span class="nc" id="L49">        this.pan = pan;</span>
+<span class="nc" id="L50">    }</span>
+    
+    public String getCvv() {
+<span class="nc" id="L53">        return cvv;</span>
+    }
+    
+    public void setCvv(String cvv) {
+<span class="nc" id="L57">        this.cvv = cvv;</span>
+<span class="nc" id="L58">    }</span>
+    
+    public String getExpiryDate() {
+<span class="nc" id="L61">        return expiryDate;</span>
+    }
+    
+    public void setExpiryDate(String expiryDate) {
+<span class="nc" id="L65">        this.expiryDate = expiryDate;</span>
+<span class="nc" id="L66">    }</span>
+    
+    public String getCardholderName() {
+<span class="nc" id="L69">        return cardholderName;</span>
+    }
+    
+    public void setCardholderName(String cardholderName) {
+<span class="nc" id="L73">        this.cardholderName = cardholderName;</span>
+<span class="nc" id="L74">    }</span>
+    
+    public String getMerchantId() {
+<span class="nc" id="L77">        return merchantId;</span>
+    }
+    
+    public void setMerchantId(String merchantId) {
+<span class="nc" id="L81">        this.merchantId = merchantId;</span>
+<span class="nc" id="L82">    }</span>
+    
+    public boolean isTestMode() {
+<span class="nc" id="L85">        return testMode;</span>
+    }
+    
+    public void setTestMode(boolean testMode) {
+<span class="nc" id="L89">        this.testMode = testMode;</span>
+<span class="nc" id="L90">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

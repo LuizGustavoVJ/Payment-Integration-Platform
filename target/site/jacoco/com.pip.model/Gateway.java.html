@@ -1,0 +1,611 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Gateway.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">Gateway.java</span></div><h1>Gateway.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa um gateway de pagamento configurado
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Entity
+@Table(name = &quot;gateway&quot;, indexes = {
+    @Index(name = &quot;idx_gateway_codigo&quot;, columnList = &quot;codigo&quot;),
+    @Index(name = &quot;idx_gateway_status&quot;, columnList = &quot;status&quot;),
+    @Index(name = &quot;idx_gateway_prioridade&quot;, columnList = &quot;prioridade&quot;)
+})
+public class Gateway {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @Column(name = &quot;codigo&quot;, nullable = false, unique = true, length = 50)
+    @NotBlank(message = &quot;Código do gateway é obrigatório&quot;)
+    @Size(max = 50, message = &quot;Código deve ter no máximo 50 caracteres&quot;)
+    private String codigo;
+
+    @Column(name = &quot;nome&quot;, nullable = false, length = 100)
+    @NotBlank(message = &quot;Nome do gateway é obrigatório&quot;)
+    @Size(max = 100, message = &quot;Nome deve ter no máximo 100 caracteres&quot;)
+    private String nome;
+
+    @Column(name = &quot;descricao&quot;, length = 500)
+    @Size(max = 500, message = &quot;Descrição deve ter no máximo 500 caracteres&quot;)
+    private String descricao;
+
+    @Column(name = &quot;tipo&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private TipoGateway tipo;
+
+    @Column(name = &quot;status&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private StatusGateway status;
+
+    @Column(name = &quot;url_base&quot;, nullable = false, length = 500)
+    @NotBlank(message = &quot;URL base é obrigatória&quot;)
+    @Size(max = 500, message = &quot;URL base deve ter no máximo 500 caracteres&quot;)
+    private String urlBase;
+
+    @Column(name = &quot;url_sandbox&quot;, length = 500)
+    @Size(max = 500, message = &quot;URL sandbox deve ter no máximo 500 caracteres&quot;)
+    private String urlSandbox;
+
+    @Column(name = &quot;api_key&quot;, length = 500)
+    @Size(max = 500, message = &quot;API Key deve ter no máximo 500 caracteres&quot;)
+    private String apiKey;
+
+    @Column(name = &quot;api_secret&quot;, length = 500)
+    @Size(max = 500, message = &quot;API Secret deve ter no máximo 500 caracteres&quot;)
+    private String apiSecret;
+
+    @Column(name = &quot;merchant_id&quot;, length = 100)
+    @Size(max = 100, message = &quot;Merchant ID deve ter no máximo 100 caracteres&quot;)
+    private String merchantId;
+
+    @Column(name = &quot;prioridade&quot;, nullable = false)
+    @Min(value = 1, message = &quot;Prioridade deve ser no mínimo 1&quot;)
+    @Max(value = 100, message = &quot;Prioridade deve ser no máximo 100&quot;)
+    private Integer prioridade;
+
+    @Column(name = &quot;peso_roteamento&quot;, nullable = false)
+    @Min(value = 0, message = &quot;Peso deve ser no mínimo 0&quot;)
+    @Max(value = 100, message = &quot;Peso deve ser no máximo 100&quot;)
+    private Integer pesoRoteamento;
+
+<span class="fc" id="L81">    @Column(name = &quot;taxa_sucesso&quot;, nullable = false)</span>
+<span class="fc" id="L82">    private Double taxaSucesso = 0.0; // Percentual de sucesso (0-100)</span>
+
+<span class="fc" id="L84">    @Column(name = &quot;tempo_resposta_medio&quot;, nullable = false)</span>
+<span class="fc" id="L85">    private Long tempoRespostaMedio = 0L; // Em milissegundos</span>
+
+    @Column(name = &quot;limite_diario&quot;, nullable = false)
+    private Long limiteDiario; // Em centavos
+
+<span class="fc" id="L90">    @Column(name = &quot;volume_processado_hoje&quot;, nullable = false)</span>
+<span class="fc" id="L91">    private Long volumeProcessadoHoje = 0L; // Em centavos</span>
+
+<span class="fc" id="L93">    @Column(name = &quot;total_transacoes&quot;, nullable = false)</span>
+<span class="fc" id="L94">    private Long totalTransacoes = 0L;</span>
+
+<span class="fc" id="L96">    @Column(name = &quot;total_sucesso&quot;, nullable = false)</span>
+<span class="fc" id="L97">    private Long totalSucesso = 0L;</span>
+
+<span class="fc" id="L99">    @Column(name = &quot;total_falhas&quot;, nullable = false)</span>
+<span class="fc" id="L100">    private Long totalFalhas = 0L;</span>
+
+<span class="fc" id="L102">    @Column(name = &quot;suporta_captura&quot;, nullable = false)</span>
+<span class="fc" id="L103">    private Boolean suportaCaptura = true;</span>
+
+<span class="fc" id="L105">    @Column(name = &quot;suporta_cancelamento&quot;, nullable = false)</span>
+<span class="fc" id="L106">    private Boolean suportaCancelamento = true;</span>
+
+<span class="fc" id="L108">    @Column(name = &quot;suporta_estorno&quot;, nullable = false)</span>
+<span class="fc" id="L109">    private Boolean suportaEstorno = true;</span>
+
+<span class="fc" id="L111">    @Column(name = &quot;suporta_parcelamento&quot;, nullable = false)</span>
+<span class="fc" id="L112">    private Boolean suportaParcelamento = false;</span>
+
+<span class="fc" id="L114">    @Column(name = &quot;max_parcelas&quot;, nullable = false)</span>
+<span class="fc" id="L115">    private Integer maxParcelas = 1;</span>
+
+<span class="fc" id="L117">    @Column(name = &quot;timeout_conexao&quot;, nullable = false)</span>
+<span class="fc" id="L118">    private Integer timeoutConexao = 30000; // Em milissegundos</span>
+
+<span class="fc" id="L120">    @Column(name = &quot;timeout_leitura&quot;, nullable = false)</span>
+<span class="fc" id="L121">    private Integer timeoutLeitura = 60000; // Em milissegundos</span>
+
+<span class="fc" id="L123">    @Column(name = &quot;max_tentativas&quot;, nullable = false)</span>
+<span class="fc" id="L124">    private Integer maxTentativas = 3;</span>
+
+<span class="fc" id="L126">    @Column(name = &quot;intervalo_retry&quot;, nullable = false)</span>
+<span class="fc" id="L127">    private Integer intervaloRetry = 1000; // Em milissegundos</span>
+
+    @Column(name = &quot;ambiente&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private AmbienteGateway ambiente;
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private ZonedDateTime createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    private ZonedDateTime updatedAt;
+
+    @Column(name = &quot;last_health_check&quot;)
+    private ZonedDateTime lastHealthCheck;
+
+    @Column(name = &quot;health_status&quot;, length = 20)
+    @Enumerated(EnumType.STRING)
+    private HealthStatus healthStatus;
+
+    // Campos específicos para PIX
+    @Column(name = &quot;pix_key&quot;, length = 200)
+    @Size(max = 200, message = &quot;Chave PIX deve ter no máximo 200 caracteres&quot;)
+    private String pixKey;
+
+    // Campos específicos para Boleto
+    @Column(name = &quot;agencia&quot;, length = 10)
+    @Size(max = 10, message = &quot;Agência deve ter no máximo 10 caracteres&quot;)
+    private String agencia;
+
+    @Column(name = &quot;conta&quot;, length = 20)
+    @Size(max = 20, message = &quot;Conta deve ter no máximo 20 caracteres&quot;)
+    private String conta;
+
+    // Construtores
+<span class="fc" id="L161">    public Gateway() {</span>
+<span class="fc" id="L162">        this.createdAt = ZonedDateTime.now();</span>
+<span class="fc" id="L163">        this.status = StatusGateway.INACTIVE;</span>
+<span class="fc" id="L164">        this.ambiente = AmbienteGateway.SANDBOX;</span>
+<span class="fc" id="L165">        this.healthStatus = HealthStatus.UNKNOWN;</span>
+<span class="fc" id="L166">        this.volumeProcessadoHoje = 0L;</span>
+<span class="fc" id="L167">        this.totalTransacoes = 0L;</span>
+<span class="fc" id="L168">        this.totalSucesso = 0L;</span>
+<span class="fc" id="L169">        this.totalFalhas = 0L;</span>
+<span class="fc" id="L170">        this.taxaSucesso = 0.0;</span>
+<span class="fc" id="L171">        this.tempoRespostaMedio = 0L;</span>
+<span class="fc" id="L172">    }</span>
+
+    public Gateway(String codigo, String nome, TipoGateway tipo, String urlBase) {
+<span class="nc" id="L175">        this();</span>
+<span class="nc" id="L176">        this.codigo = codigo;</span>
+<span class="nc" id="L177">        this.nome = nome;</span>
+<span class="nc" id="L178">        this.tipo = tipo;</span>
+<span class="nc" id="L179">        this.urlBase = urlBase;</span>
+<span class="nc" id="L180">    }</span>
+
+    // Métodos de negócio
+    public void ativar() {
+<span class="pc bpc" id="L184" title="2 of 4 branches missed.">        if (this.apiKey == null || this.apiKey.trim().isEmpty()) {</span>
+<span class="nc" id="L185">            throw new IllegalStateException(&quot;API Key é obrigatória para ativar o gateway&quot;);</span>
+        }
+<span class="fc" id="L187">        this.status = StatusGateway.ACTIVE;</span>
+<span class="fc" id="L188">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L189">    }</span>
+
+    public void desativar() {
+<span class="nc" id="L192">        this.status = StatusGateway.INACTIVE;</span>
+<span class="nc" id="L193">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L194">    }</span>
+
+    public void marcarManutencao() {
+<span class="nc" id="L197">        this.status = StatusGateway.MAINTENANCE;</span>
+<span class="nc" id="L198">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L199">    }</span>
+
+    public boolean podeProcessarTransacao(Long valor) {
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (this.status != StatusGateway.ACTIVE) {</span>
+<span class="nc" id="L203">            return false;</span>
+        }
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (this.healthStatus == HealthStatus.DOWN) {</span>
+<span class="nc" id="L206">            return false;</span>
+        }
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">        return (this.volumeProcessadoHoje + valor) &lt;= this.limiteDiario;</span>
+    }
+
+    public void registrarTransacao(boolean sucesso, Long valor, Long tempoResposta) {
+<span class="nc" id="L212">        this.totalTransacoes++;</span>
+<span class="nc" id="L213">        this.volumeProcessadoHoje += valor;</span>
+        
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if (sucesso) {</span>
+<span class="nc" id="L216">            this.totalSucesso++;</span>
+        } else {
+<span class="nc" id="L218">            this.totalFalhas++;</span>
+        }
+        
+        // Atualizar taxa de sucesso
+<span class="nc" id="L222">        this.taxaSucesso = (this.totalSucesso.doubleValue() / this.totalTransacoes.doubleValue()) * 100.0;</span>
+        
+        // Atualizar tempo médio de resposta (média móvel simples)
+<span class="nc" id="L225">        this.tempoRespostaMedio = (this.tempoRespostaMedio + tempoResposta) / 2;</span>
+        
+<span class="nc" id="L227">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L228">    }</span>
+
+    public void resetarVolumeProcessadoHoje() {
+<span class="nc" id="L231">        this.volumeProcessadoHoje = 0L;</span>
+<span class="nc" id="L232">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L233">    }</span>
+
+    public void atualizarHealthCheck(HealthStatus novoStatus) {
+<span class="fc" id="L236">        this.healthStatus = novoStatus;</span>
+<span class="fc" id="L237">        this.lastHealthCheck = ZonedDateTime.now();</span>
+<span class="fc" id="L238">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L239">    }</span>
+
+    public String getUrlAtiva() {
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        return this.ambiente == AmbienteGateway.PRODUCTION ? this.urlBase : this.urlSandbox;</span>
+    }
+
+    public boolean isHealthy() {
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        return this.healthStatus == HealthStatus.UP;</span>
+    }
+
+    public double getPercentualLimiteUtilizado() {
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (this.limiteDiario == 0) return 0.0;</span>
+<span class="fc" id="L251">        return (this.volumeProcessadoHoje.doubleValue() / this.limiteDiario.doubleValue()) * 100.0;</span>
+    }
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="fc" id="L256">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="fc" id="L260">        this.id = id;</span>
+<span class="fc" id="L261">    }</span>
+
+    public String getCodigo() {
+<span class="fc" id="L264">        return codigo;</span>
+    }
+
+    public void setCodigo(String codigo) {
+<span class="fc" id="L268">        this.codigo = codigo;</span>
+<span class="fc" id="L269">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L270">    }</span>
+
+    public String getNome() {
+<span class="nc" id="L273">        return nome;</span>
+    }
+
+    public void setNome(String nome) {
+<span class="fc" id="L277">        this.nome = nome;</span>
+<span class="fc" id="L278">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L279">    }</span>
+
+    public String getDescricao() {
+<span class="nc" id="L282">        return descricao;</span>
+    }
+
+    public void setDescricao(String descricao) {
+<span class="nc" id="L286">        this.descricao = descricao;</span>
+<span class="nc" id="L287">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L288">    }</span>
+
+    public TipoGateway getTipo() {
+<span class="nc" id="L291">        return tipo;</span>
+    }
+
+    public void setTipo(TipoGateway tipo) {
+<span class="fc" id="L295">        this.tipo = tipo;</span>
+<span class="fc" id="L296">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L297">    }</span>
+
+    public StatusGateway getStatus() {
+<span class="fc" id="L300">        return status;</span>
+    }
+
+    public void setStatus(StatusGateway status) {
+<span class="nc" id="L304">        this.status = status;</span>
+<span class="nc" id="L305">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L306">    }</span>
+
+    public String getUrlBase() {
+<span class="nc" id="L309">        return urlBase;</span>
+    }
+
+    public void setUrlBase(String urlBase) {
+<span class="fc" id="L313">        this.urlBase = urlBase;</span>
+<span class="fc" id="L314">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L315">    }</span>
+
+    public String getUrlSandbox() {
+<span class="nc" id="L318">        return urlSandbox;</span>
+    }
+
+    public void setUrlSandbox(String urlSandbox) {
+<span class="nc" id="L322">        this.urlSandbox = urlSandbox;</span>
+<span class="nc" id="L323">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L324">    }</span>
+
+    public String getApiKey() {
+<span class="nc" id="L327">        return apiKey;</span>
+    }
+
+    public void setApiKey(String apiKey) {
+<span class="fc" id="L331">        this.apiKey = apiKey;</span>
+<span class="fc" id="L332">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L333">    }</span>
+
+    public String getApiSecret() {
+<span class="nc" id="L336">        return apiSecret;</span>
+    }
+
+    public void setApiSecret(String apiSecret) {
+<span class="nc" id="L340">        this.apiSecret = apiSecret;</span>
+<span class="nc" id="L341">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L342">    }</span>
+
+    public String getMerchantId() {
+<span class="nc" id="L345">        return merchantId;</span>
+    }
+
+    public void setMerchantId(String merchantId) {
+<span class="nc" id="L349">        this.merchantId = merchantId;</span>
+<span class="nc" id="L350">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L351">    }</span>
+
+    public Integer getPrioridade() {
+<span class="fc" id="L354">        return prioridade;</span>
+    }
+
+    public void setPrioridade(Integer prioridade) {
+<span class="fc" id="L358">        this.prioridade = prioridade;</span>
+<span class="fc" id="L359">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L360">    }</span>
+
+    public Integer getPesoRoteamento() {
+<span class="nc" id="L363">        return pesoRoteamento;</span>
+    }
+
+    public void setPesoRoteamento(Integer pesoRoteamento) {
+<span class="fc" id="L367">        this.pesoRoteamento = pesoRoteamento;</span>
+<span class="fc" id="L368">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L369">    }</span>
+
+    public Double getTaxaSucesso() {
+<span class="fc" id="L372">        return taxaSucesso;</span>
+    }
+
+    public void setTaxaSucesso(Double taxaSucesso) {
+<span class="fc" id="L376">        this.taxaSucesso = taxaSucesso;</span>
+<span class="fc" id="L377">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L378">    }</span>
+
+    public Long getTempoRespostaMedio() {
+<span class="fc" id="L381">        return tempoRespostaMedio;</span>
+    }
+
+    public void setTempoRespostaMedio(Long tempoRespostaMedio) {
+<span class="fc" id="L385">        this.tempoRespostaMedio = tempoRespostaMedio;</span>
+<span class="fc" id="L386">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L387">    }</span>
+
+    public Long getLimiteDiario() {
+<span class="fc" id="L390">        return limiteDiario;</span>
+    }
+
+    public void setLimiteDiario(Long limiteDiario) {
+<span class="fc" id="L394">        this.limiteDiario = limiteDiario;</span>
+<span class="fc" id="L395">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L396">    }</span>
+
+    public Long getVolumeProcessadoHoje() {
+<span class="fc" id="L399">        return volumeProcessadoHoje;</span>
+    }
+
+    public void setVolumeProcessadoHoje(Long volumeProcessadoHoje) {
+<span class="fc" id="L403">        this.volumeProcessadoHoje = volumeProcessadoHoje;</span>
+<span class="fc" id="L404">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L405">    }</span>
+
+    public Long getTotalTransacoes() {
+<span class="fc" id="L408">        return totalTransacoes;</span>
+    }
+
+    public void setTotalTransacoes(Long totalTransacoes) {
+<span class="nc" id="L412">        this.totalTransacoes = totalTransacoes;</span>
+<span class="nc" id="L413">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L414">    }</span>
+
+    public Long getTotalSucesso() {
+<span class="fc" id="L417">        return totalSucesso;</span>
+    }
+
+    public void setTotalSucesso(Long totalSucesso) {
+<span class="nc" id="L421">        this.totalSucesso = totalSucesso;</span>
+<span class="nc" id="L422">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L423">    }</span>
+
+    public Long getTotalFalhas() {
+<span class="fc" id="L426">        return totalFalhas;</span>
+    }
+
+    public void setTotalFalhas(Long totalFalhas) {
+<span class="nc" id="L430">        this.totalFalhas = totalFalhas;</span>
+<span class="nc" id="L431">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L432">    }</span>
+
+    public Boolean getSuportaCaptura() {
+<span class="nc" id="L435">        return suportaCaptura;</span>
+    }
+
+    public void setSuportaCaptura(Boolean suportaCaptura) {
+<span class="nc" id="L439">        this.suportaCaptura = suportaCaptura;</span>
+<span class="nc" id="L440">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L441">    }</span>
+
+    public Boolean getSuportaCancelamento() {
+<span class="nc" id="L444">        return suportaCancelamento;</span>
+    }
+
+    public void setSuportaCancelamento(Boolean suportaCancelamento) {
+<span class="nc" id="L448">        this.suportaCancelamento = suportaCancelamento;</span>
+<span class="nc" id="L449">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L450">    }</span>
+
+    public Boolean getSuportaEstorno() {
+<span class="nc" id="L453">        return suportaEstorno;</span>
+    }
+
+    public void setSuportaEstorno(Boolean suportaEstorno) {
+<span class="nc" id="L457">        this.suportaEstorno = suportaEstorno;</span>
+<span class="nc" id="L458">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L459">    }</span>
+
+    public Boolean getSuportaParcelamento() {
+<span class="nc" id="L462">        return suportaParcelamento;</span>
+    }
+
+    public void setSuportaParcelamento(Boolean suportaParcelamento) {
+<span class="nc" id="L466">        this.suportaParcelamento = suportaParcelamento;</span>
+<span class="nc" id="L467">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L468">    }</span>
+
+    public Integer getMaxParcelas() {
+<span class="nc" id="L471">        return maxParcelas;</span>
+    }
+
+    public void setMaxParcelas(Integer maxParcelas) {
+<span class="nc" id="L475">        this.maxParcelas = maxParcelas;</span>
+<span class="nc" id="L476">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L477">    }</span>
+
+    public Integer getTimeoutConexao() {
+<span class="nc" id="L480">        return timeoutConexao;</span>
+    }
+
+    public void setTimeoutConexao(Integer timeoutConexao) {
+<span class="nc" id="L484">        this.timeoutConexao = timeoutConexao;</span>
+<span class="nc" id="L485">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L486">    }</span>
+
+    public Integer getTimeoutLeitura() {
+<span class="nc" id="L489">        return timeoutLeitura;</span>
+    }
+
+    public void setTimeoutLeitura(Integer timeoutLeitura) {
+<span class="nc" id="L493">        this.timeoutLeitura = timeoutLeitura;</span>
+<span class="nc" id="L494">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L495">    }</span>
+
+    public Integer getMaxTentativas() {
+<span class="nc" id="L498">        return maxTentativas;</span>
+    }
+
+    public void setMaxTentativas(Integer maxTentativas) {
+<span class="nc" id="L502">        this.maxTentativas = maxTentativas;</span>
+<span class="nc" id="L503">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L504">    }</span>
+
+    public Integer getIntervaloRetry() {
+<span class="nc" id="L507">        return intervaloRetry;</span>
+    }
+
+    public void setIntervaloRetry(Integer intervaloRetry) {
+<span class="nc" id="L511">        this.intervaloRetry = intervaloRetry;</span>
+<span class="nc" id="L512">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L513">    }</span>
+
+    public AmbienteGateway getAmbiente() {
+<span class="nc" id="L516">        return ambiente;</span>
+    }
+
+    public void setAmbiente(AmbienteGateway ambiente) {
+<span class="nc" id="L520">        this.ambiente = ambiente;</span>
+<span class="nc" id="L521">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L522">    }</span>
+
+    public ZonedDateTime getCreatedAt() {
+<span class="nc" id="L525">        return createdAt;</span>
+    }
+
+    public void setCreatedAt(ZonedDateTime createdAt) {
+<span class="nc" id="L529">        this.createdAt = createdAt;</span>
+<span class="nc" id="L530">    }</span>
+
+    public ZonedDateTime getUpdatedAt() {
+<span class="nc" id="L533">        return updatedAt;</span>
+    }
+
+    public void setUpdatedAt(ZonedDateTime updatedAt) {
+<span class="nc" id="L537">        this.updatedAt = updatedAt;</span>
+<span class="nc" id="L538">    }</span>
+
+    public ZonedDateTime getLastHealthCheck() {
+<span class="fc" id="L541">        return lastHealthCheck;</span>
+    }
+
+    public void setLastHealthCheck(ZonedDateTime lastHealthCheck) {
+<span class="nc" id="L545">        this.lastHealthCheck = lastHealthCheck;</span>
+<span class="nc" id="L546">    }</span>
+
+    public HealthStatus getHealthStatus() {
+<span class="fc" id="L549">        return healthStatus;</span>
+    }
+
+    public void setHealthStatus(HealthStatus healthStatus) {
+<span class="nc" id="L553">        this.healthStatus = healthStatus;</span>
+<span class="nc" id="L554">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L555">    }</span>
+
+    public String getPixKey() {
+<span class="nc" id="L558">        return pixKey;</span>
+    }
+
+    public void setPixKey(String pixKey) {
+<span class="nc" id="L562">        this.pixKey = pixKey;</span>
+<span class="nc" id="L563">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L564">    }</span>
+
+    public String getAgencia() {
+<span class="nc" id="L567">        return agencia;</span>
+    }
+
+    public void setAgencia(String agencia) {
+<span class="nc" id="L571">        this.agencia = agencia;</span>
+<span class="nc" id="L572">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L573">    }</span>
+
+    public String getConta() {
+<span class="nc" id="L576">        return conta;</span>
+    }
+
+    public void setConta(String conta) {
+<span class="nc" id="L580">        this.conta = conta;</span>
+<span class="nc" id="L581">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L582">    }</span>
+
+    // Método auxiliar para obter a URL da API baseada no ambiente
+    public String getApiUrl() {
+<span class="nc bnc" id="L586" title="All 2 branches missed.">        return ambiente == AmbienteGateway.PRODUCTION ? urlBase : urlSandbox;</span>
+    }
+
+    // Método auxiliar para obter a chave do merchant
+    public String getMerchantKey() {
+<span class="nc" id="L591">        return apiKey;</span>
+    }
+}
+
+/**
+ * Enum para tipos de gateway
+ */
+
+/**
+ * Enum para status do gateway
+ */
+
+/**
+ * Enum para ambiente do gateway
+ */
+
+/**
+ * Enum para status de saúde do gateway
+ */
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

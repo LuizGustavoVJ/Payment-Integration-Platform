@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagamentoService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">PagamentoService.java</span></div><h1>PagamentoService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.dto.AuthorizationRequest;
+import com.pip.dto.CaptureRequest;
+import com.pip.dto.VoidRequest;
+import com.pip.dto.PaymentResponse;
+import com.pip.model.*;
+import com.pip.repository.TransacaoRepository;
+import com.pip.repository.LogTransacaoRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.ZonedDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Serviço responsável pela lógica de negócio de pagamentos
+ * 
+ * Implementa o fluxo completo de processamento de pagamentos:
+ * - Autorização com seleção inteligente de gateway
+ * - Captura com validações
+ * - Cancelamento com auditoria
+ * - Consulta com filtros
+ * - Integração com webhooks
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L36">public class PagamentoService {</span>
+
+<span class="nc" id="L38">    private static final Logger logger = LoggerFactory.getLogger(PagamentoService.class);</span>
+
+    @Autowired
+    private TransacaoRepository transacaoRepository;
+
+    @Autowired
+    private LogTransacaoRepository logTransacaoRepository;
+
+    @Autowired
+    private GatewayRoutingService gatewayRoutingService;
+
+    @Autowired
+    private GatewayIntegrationService gatewayIntegrationService;
+
+    @Autowired
+    private WebhookService webhookService;
+
+    /**
+     * Autoriza um novo pagamento
+     * 
+     * @param request Dados da requisição de autorização
+     * @param lojista Lojista que está processando o pagamento
+     * @return Resposta com os detalhes do pagamento processado
+     */
+    @Transactional
+    public PaymentResponse autorizarPagamento(AuthorizationRequest request, Lojista lojista) {
+<span class="nc" id="L64">        logger.info(&quot;Iniciando autorização de pagamento para lojista {}&quot;, lojista.getId());</span>
+
+        // Criar transação
+<span class="nc" id="L67">        Transacao transacao = new Transacao();</span>
+<span class="nc" id="L68">        transacao.setTransactionId(&quot;TXN-&quot; + UUID.randomUUID());</span>
+<span class="nc" id="L69">        transacao.setLojista(lojista);</span>
+<span class="nc" id="L70">        transacao.setValor(request.getAmount());</span>
+<span class="nc" id="L71">        transacao.setMoeda(request.getCurrency());</span>
+<span class="nc" id="L72">        transacao.setParcelas(request.getInstallments());</span>
+<span class="nc" id="L73">        transacao.setStatus(TransactionStatus.PENDING.toString());</span>
+<span class="nc" id="L74">        transacao.setCreatedAt(ZonedDateTime.now());</span>
+
+        // Dados do cliente
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (request.getCustomer() != null) {</span>
+<span class="nc" id="L78">            transacao.setCustomerName(request.getCustomer().getName());</span>
+<span class="nc" id="L79">            transacao.setCustomerEmail(request.getCustomer().getEmail());</span>
+<span class="nc" id="L80">            transacao.setCustomerDocument(request.getCustomer().getDocument());</span>
+        }
+
+        // Salvar transação inicial
+<span class="nc" id="L84">        transacao = transacaoRepository.save(transacao);</span>
+
+        // Registrar log
+<span class="nc" id="L87">        registrarLog(transacao, &quot;AUTHORIZATION_STARTED&quot;, &quot;Iniciando processo de autorização&quot;);</span>
+
+        try {
+            // Selecionar melhor gateway
+<span class="nc" id="L91">            Gateway gateway = gatewayRoutingService.selecionarMelhorGateway(lojista, request.getAmount());</span>
+<span class="nc" id="L92">            transacao.setGateway(gateway);</span>
+<span class="nc" id="L93">            transacao = transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L95">            logger.info(&quot;Gateway selecionado: {} para transação {}&quot;, gateway.getCodigo(), transacao.getTransactionId());</span>
+
+            // Processar autorização no gateway
+<span class="nc" id="L98">            PaymentResponse response = gatewayIntegrationService.authorize(gateway, request, transacao);</span>
+
+            // Atualizar transação com resposta
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (response.isSuccess()) {</span>
+<span class="nc" id="L102">                transacao.setStatus(TransactionStatus.AUTHORIZED.toString());</span>
+<span class="nc" id="L103">                transacao.setGatewayTransactionId(response.getGatewayTransactionId());</span>
+<span class="nc" id="L104">                transacao.setAuthorizationCode(response.getAuthorizationCode());</span>
+<span class="nc" id="L105">                transacao.setNsu(response.getNsu());</span>
+<span class="nc" id="L106">                transacao.setTid(response.getTid());</span>
+<span class="nc" id="L107">                transacao.setAuthorizedAt(ZonedDateTime.now());</span>
+
+<span class="nc" id="L109">                registrarLog(transacao, &quot;AUTHORIZATION_SUCCESS&quot;, &quot;Autorização realizada com sucesso&quot;);</span>
+
+                // Criar webhook para notificar lojista
+<span class="nc" id="L112">                webhookService.criarWebhook(lojista, transacao, &quot;TRANSACTION_AUTHORIZED&quot;);</span>
+
+            } else {
+<span class="nc" id="L115">                transacao.setStatus(TransactionStatus.FAILED.toString());</span>
+<span class="nc" id="L116">                transacao.setErrorCode(response.getErrorCode());</span>
+<span class="nc" id="L117">                transacao.setErrorMessage(response.getErrorMessage());</span>
+
+<span class="nc" id="L119">                registrarLog(transacao, &quot;AUTHORIZATION_FAILED&quot;, &quot;Falha na autorização: &quot; + response.getErrorMessage());</span>
+            }
+
+<span class="nc" id="L122">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L123">            transacao = transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L125">            return response;</span>
+
+<span class="nc" id="L127">        } catch (Exception e) {</span>
+<span class="nc" id="L128">            logger.error(&quot;Erro ao autorizar pagamento: {}&quot;, e.getMessage(), e);</span>
+
+<span class="nc" id="L130">            transacao.setStatus(TransactionStatus.FAILED.toString());</span>
+<span class="nc" id="L131">            transacao.setErrorMessage(e.getMessage());</span>
+<span class="nc" id="L132">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L133">            transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L135">            registrarLog(transacao, &quot;AUTHORIZATION_ERROR&quot;, &quot;Erro no processamento: &quot; + e.getMessage());</span>
+
+<span class="nc" id="L137">            throw new RuntimeException(&quot;Falha ao processar autorização: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Captura um pagamento previamente autorizado
+     * 
+     * @param transactionId ID da transação a ser capturada
+     * @param request Dados da captura
+     * @return Resposta com os detalhes do pagamento capturado
+     */
+    @Transactional
+    public PaymentResponse capturarPagamento(String transactionId, CaptureRequest request) {
+<span class="nc" id="L150">        logger.info(&quot;Iniciando captura de pagamento {}&quot;, transactionId);</span>
+
+        // Buscar transação
+<span class="nc" id="L153">        Transacao transacao = transacaoRepository.findByTransactionId(transactionId)</span>
+<span class="nc" id="L154">            .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Transação não encontrada: &quot; + transactionId));</span>
+
+        // Validar status
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if (!transacao.getStatus().equals(TransactionStatus.AUTHORIZED.toString())) {</span>
+<span class="nc" id="L158">            throw new IllegalStateException(&quot;Transação não pode ser capturada. Status atual: &quot; + transacao.getStatus());</span>
+        }
+
+        // Validar valor
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if (request.getAmount().longValue() &gt; transacao.getValor()) {</span>
+<span class="nc" id="L163">            throw new IllegalArgumentException(&quot;Valor da captura não pode ser maior que o valor autorizado&quot;);</span>
+        }
+
+<span class="nc" id="L166">        registrarLog(transacao, &quot;CAPTURE_STARTED&quot;, &quot;Iniciando processo de captura&quot;);</span>
+
+        try {
+            // Processar captura no gateway
+<span class="nc" id="L170">            PaymentResponse response = gatewayIntegrationService.capture(transacao.getGateway(), request, transacao);</span>
+
+            // Atualizar transação
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (response.isSuccess()) {</span>
+<span class="nc" id="L174">                transacao.setStatus(TransactionStatus.CAPTURED.toString());</span>
+<span class="nc" id="L175">                transacao.setValorCapturado(request.getAmount().longValue());</span>
+<span class="nc" id="L176">                transacao.setCapturedAt(ZonedDateTime.now());</span>
+
+<span class="nc" id="L178">                registrarLog(transacao, &quot;CAPTURE_SUCCESS&quot;, &quot;Captura realizada com sucesso&quot;);</span>
+
+                // Criar webhook
+<span class="nc" id="L181">                webhookService.criarWebhook(transacao.getLojista(), transacao, &quot;TRANSACTION_CAPTURED&quot;);</span>
+
+            } else {
+<span class="nc" id="L184">                transacao.setStatus(TransactionStatus.FAILED.toString());</span>
+<span class="nc" id="L185">                transacao.setErrorCode(response.getErrorCode());</span>
+<span class="nc" id="L186">                transacao.setErrorMessage(response.getErrorMessage());</span>
+
+<span class="nc" id="L188">                registrarLog(transacao, &quot;CAPTURE_FAILED&quot;, &quot;Falha na captura: &quot; + response.getErrorMessage());</span>
+            }
+
+<span class="nc" id="L191">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L192">            transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L194">            return response;</span>
+
+<span class="nc" id="L196">        } catch (Exception e) {</span>
+<span class="nc" id="L197">            logger.error(&quot;Erro ao capturar pagamento: {}&quot;, e.getMessage(), e);</span>
+
+<span class="nc" id="L199">            transacao.setStatus(TransactionStatus.FAILED.toString());</span>
+<span class="nc" id="L200">            transacao.setErrorMessage(e.getMessage());</span>
+<span class="nc" id="L201">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L202">            transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L204">            registrarLog(transacao, &quot;CAPTURE_ERROR&quot;, &quot;Erro no processamento: &quot; + e.getMessage());</span>
+
+<span class="nc" id="L206">            throw new RuntimeException(&quot;Falha ao processar captura: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Cancela um pagamento autorizado
+     * 
+     * @param transactionId ID da transação a ser cancelada
+     * @param request Dados do cancelamento
+     * @return Resposta com os detalhes do pagamento cancelado
+     */
+    @Transactional
+    public PaymentResponse cancelarPagamento(String transactionId, VoidRequest request) {
+<span class="nc" id="L219">        logger.info(&quot;Iniciando cancelamento de pagamento {}&quot;, transactionId);</span>
+
+        // Buscar transação
+<span class="nc" id="L222">        Transacao transacao = transacaoRepository.findByTransactionId(transactionId)</span>
+<span class="nc" id="L223">            .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Transação não encontrada: &quot; + transactionId));</span>
+
+        // Validar status
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        if (!transacao.getStatus().equals(TransactionStatus.AUTHORIZED.toString()) &amp;&amp; </span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            !transacao.getStatus().equals(TransactionStatus.CAPTURED.toString())) {</span>
+<span class="nc" id="L228">            throw new IllegalStateException(&quot;Transação não pode ser cancelada. Status atual: &quot; + transacao.getStatus());</span>
+        }
+
+<span class="nc" id="L231">        registrarLog(transacao, &quot;VOID_STARTED&quot;, &quot;Iniciando processo de cancelamento&quot;);</span>
+
+        try {
+            // Processar cancelamento no gateway
+<span class="nc" id="L235">            PaymentResponse response = gatewayIntegrationService.voidTransaction(transacao.getGateway(), request, transacao);</span>
+
+            // Atualizar transação
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (response.isSuccess()) {</span>
+<span class="nc" id="L239">                transacao.setStatus(TransactionStatus.VOIDED.toString());</span>
+<span class="nc" id="L240">                transacao.setVoidReason(request.getReason());</span>
+<span class="nc" id="L241">                transacao.setVoidedAt(ZonedDateTime.now());</span>
+
+<span class="nc" id="L243">                registrarLog(transacao, &quot;VOID_SUCCESS&quot;, &quot;Cancelamento realizado com sucesso&quot;);</span>
+
+                // Criar webhook
+<span class="nc" id="L246">                webhookService.criarWebhook(transacao.getLojista(), transacao, &quot;TRANSACTION_VOIDED&quot;);</span>
+
+            } else {
+<span class="nc" id="L249">                transacao.setErrorCode(response.getErrorCode());</span>
+<span class="nc" id="L250">                transacao.setErrorMessage(response.getErrorMessage());</span>
+
+<span class="nc" id="L252">                registrarLog(transacao, &quot;VOID_FAILED&quot;, &quot;Falha no cancelamento: &quot; + response.getErrorMessage());</span>
+            }
+
+<span class="nc" id="L255">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L256">            transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L258">            return response;</span>
+
+<span class="nc" id="L260">        } catch (Exception e) {</span>
+<span class="nc" id="L261">            logger.error(&quot;Erro ao cancelar pagamento: {}&quot;, e.getMessage(), e);</span>
+
+<span class="nc" id="L263">            transacao.setErrorMessage(e.getMessage());</span>
+<span class="nc" id="L264">            transacao.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L265">            transacaoRepository.save(transacao);</span>
+
+<span class="nc" id="L267">            registrarLog(transacao, &quot;VOID_ERROR&quot;, &quot;Erro no processamento: &quot; + e.getMessage());</span>
+
+<span class="nc" id="L269">            throw new RuntimeException(&quot;Falha ao processar cancelamento: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Consulta uma transação pelo ID
+     * 
+     * @param transactionId ID da transação
+     * @return Resposta com os detalhes da transação
+     */
+    public PaymentResponse consultarPagamento(String transactionId) {
+<span class="nc" id="L280">        logger.info(&quot;Consultando pagamento {}&quot;, transactionId);</span>
+
+<span class="nc" id="L282">        Transacao transacao = transacaoRepository.findByTransactionId(transactionId)</span>
+<span class="nc" id="L283">            .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Transação não encontrada: &quot; + transactionId));</span>
+
+<span class="nc" id="L285">        PaymentResponse response = new PaymentResponse();</span>
+<span class="nc" id="L286">        response.setSuccess(</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            transacao.getStatus().equals(TransactionStatus.AUTHORIZED.toString()) ||</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">            transacao.getStatus().equals(TransactionStatus.CAPTURED.toString())</span>
+        );
+<span class="nc" id="L290">        response.setStatus(transacao.getStatus());</span>
+<span class="nc" id="L291">        response.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L292">        response.setGatewayTransactionId(transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L293">        response.setAuthorizationCode(transacao.getAuthorizationCode());</span>
+<span class="nc" id="L294">        response.setNsu(transacao.getNsu());</span>
+<span class="nc" id="L295">        response.setTid(transacao.getTid());</span>
+<span class="nc" id="L296">        response.setErrorCode(transacao.getErrorCode());</span>
+<span class="nc" id="L297">        response.setErrorMessage(transacao.getErrorMessage());</span>
+<span class="nc" id="L298">        response.setTimestamp(transacao.getCreatedAt());</span>
+
+<span class="nc" id="L300">        return response;</span>
+    }
+
+    /**
+     * Lista transações com filtros
+     * 
+     * @param lojistaId ID do lojista (opcional)
+     * @param status Status da transação (opcional)
+     * @param dataInicio Data inicial (opcional)
+     * @param dataFim Data final (opcional)
+     * @param pageable Paginação
+     * @return Página de transações
+     */
+    public Page&lt;Transacao&gt; listarTransacoes(UUID lojistaId, TransactionStatus status, 
+                                            ZonedDateTime dataInicio, ZonedDateTime dataFim, 
+                                            Pageable pageable) {
+<span class="nc" id="L316">        logger.info(&quot;Listando transações com filtros&quot;);</span>
+
+<span class="nc" id="L318">        Specification&lt;Transacao&gt; spec = Specification.where(null);</span>
+
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        if (lojistaId != null) {</span>
+<span class="nc" id="L321">            spec = spec.and((root, query, cb) -&gt; cb.equal(root.get(&quot;lojista&quot;).get(&quot;id&quot;), lojistaId));</span>
+        }
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (status != null) {</span>
+<span class="nc" id="L325">            spec = spec.and((root, query, cb) -&gt; cb.equal(root.get(&quot;status&quot;), status));</span>
+        }
+
+<span class="nc bnc" id="L328" title="All 2 branches missed.">        if (dataInicio != null) {</span>
+<span class="nc" id="L329">            spec = spec.and((root, query, cb) -&gt; cb.greaterThanOrEqualTo(root.get(&quot;createdAt&quot;), dataInicio));</span>
+        }
+
+<span class="nc bnc" id="L332" title="All 2 branches missed.">        if (dataFim != null) {</span>
+<span class="nc" id="L333">            spec = spec.and((root, query, cb) -&gt; cb.lessThanOrEqualTo(root.get(&quot;createdAt&quot;), dataFim));</span>
+        }
+
+<span class="nc" id="L336">        return transacaoRepository.findAll(spec, pageable);</span>
+    }
+
+    /**
+     * Registra log de transação
+     */
+    private void registrarLog(Transacao transacao, String evento, String descricao) {
+<span class="nc" id="L343">        LogTransacao log = new LogTransacao();</span>
+<span class="nc" id="L344">        log.setTransacao(transacao);</span>
+<span class="nc" id="L345">        log.setLojista(transacao.getLojista());</span>
+        
+        // Converter string evento para enum EventoLog
+        EventoLog eventoLog;
+        try {
+<span class="nc" id="L350">            eventoLog = EventoLog.valueOf(evento.toUpperCase().replace(&quot;.&quot;, &quot;_&quot;));</span>
+<span class="nc" id="L351">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L352">            eventoLog = EventoLog.SYSTEM_ERROR;</span>
+<span class="nc" id="L353">        }</span>
+<span class="nc" id="L354">        log.setEvento(eventoLog);</span>
+<span class="nc" id="L355">        log.setNivel(NivelLog.INFO);</span>
+<span class="nc" id="L356">        log.setMensagem(descricao);</span>
+<span class="nc" id="L357">        log.setTimestamp(ZonedDateTime.now());</span>
+<span class="nc" id="L358">        logTransacaoRepository.save(log);</span>
+<span class="nc" id="L359">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

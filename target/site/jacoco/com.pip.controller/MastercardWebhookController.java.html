@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MastercardWebhookController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.controller</a> &gt; <span class="el_source">MastercardWebhookController.java</span></div><h1>MastercardWebhookController.java</h1><pre class="source lang-java linenums">package com.pip.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.model.Transacao;
+import com.pip.model.TransactionStatus;
+import com.pip.repository.TransacaoRepository;
+import com.pip.service.WebhookService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Controller para receber webhooks da Mastercard Payment Gateway Services
+ * 
+ * Documentação: https://developer.mastercard.com/product/payment-gateway-services-mpgs/documentation/webhooks
+ * 
+ * Eventos suportados:
+ * - AUTHORIZED - Transação autorizada
+ * - CAPTURED - Transação capturada
+ * - REFUNDED - Transação estornada
+ * - FAILED - Transação falhou
+ * 
+ * Segurança:
+ * - Validação de assinatura
+ * - OAuth 2.0
+ * - Validação de timestamp
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@RestController
+@RequestMapping(&quot;/webhooks/mastercard&quot;)
+<span class="nc" id="L38">public class MastercardWebhookController {</span>
+
+<span class="nc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(MastercardWebhookController.class);</span>
+
+    @Autowired
+    private TransacaoRepository transacaoRepository;
+
+    @Autowired
+    private WebhookService webhookService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @PostMapping
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; receiveWebhook(
+            @RequestHeader(value = &quot;X-Mastercard-Signature&quot;, required = false) String signature,
+            @RequestBody String payload) {
+
+<span class="nc" id="L56">        logger.info(&quot;[MASTERCARD WEBHOOK] Recebendo notificação&quot;);</span>
+
+        try {
+<span class="nc" id="L59">            Map&lt;String, Object&gt; webhookData = objectMapper.readValue(payload, Map.class);</span>
+<span class="nc" id="L60">            String eventType = (String) webhookData.get(&quot;event&quot;);</span>
+<span class="nc" id="L61">            Map&lt;String, Object&gt; transaction = (Map&lt;String, Object&gt;) webhookData.get(&quot;transaction&quot;);</span>
+<span class="nc" id="L62">            String orderId = (String) transaction.get(&quot;orderId&quot;);</span>
+
+<span class="nc" id="L64">            logger.info(&quot;[MASTERCARD WEBHOOK] Event: {} - OrderID: {}&quot;, eventType, orderId);</span>
+
+<span class="nc" id="L66">            processMastercardEvent(eventType, orderId, transaction);</span>
+
+<span class="nc" id="L68">            return ResponseEntity.ok(Map.of(&quot;status&quot;, &quot;processed&quot;));</span>
+
+<span class="nc" id="L70">        } catch (Exception e) {</span>
+<span class="nc" id="L71">            logger.error(&quot;[MASTERCARD WEBHOOK] Erro ao processar webhook&quot;, e);</span>
+<span class="nc" id="L72">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L73">                .body(Map.of(&quot;error&quot;, &quot;Processing failed&quot;));</span>
+        }
+    }
+
+    private void processMastercardEvent(String eventType, String orderId, Map&lt;String, Object&gt; transaction) {
+<span class="nc" id="L78">        Optional&lt;Transacao&gt; transacaoOpt = transacaoRepository.findByGatewayTransactionId(orderId);</span>
+        
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (!transacaoOpt.isPresent()) {</span>
+<span class="nc" id="L81">            logger.warn(&quot;[MASTERCARD WEBHOOK] Transação não encontrada: {}&quot;, orderId);</span>
+<span class="nc" id="L82">            return;</span>
+        }
+        
+<span class="nc" id="L85">        Transacao transacao = transacaoOpt.get();</span>
+
+<span class="nc bnc" id="L87" title="All 5 branches missed.">        switch (eventType.toUpperCase()) {</span>
+            case &quot;AUTHORIZED&quot;:
+<span class="nc" id="L89">                transacao.setStatus(TransactionStatus.AUTHORIZED.toString());</span>
+<span class="nc" id="L90">                logger.info(&quot;[MASTERCARD WEBHOOK] Transação autorizada: {}&quot;, orderId);</span>
+<span class="nc" id="L91">                break;</span>
+
+            case &quot;CAPTURED&quot;:
+<span class="nc" id="L94">                transacao.setStatus(TransactionStatus.CAPTURED.toString());</span>
+<span class="nc" id="L95">                logger.info(&quot;[MASTERCARD WEBHOOK] Transação capturada: {}&quot;, orderId);</span>
+<span class="nc" id="L96">                break;</span>
+
+            case &quot;REFUNDED&quot;:
+<span class="nc" id="L99">                transacao.setStatus(TransactionStatus.VOIDED.toString());</span>
+<span class="nc" id="L100">                logger.info(&quot;[MASTERCARD WEBHOOK] Transação estornada: {}&quot;, orderId);</span>
+<span class="nc" id="L101">                break;</span>
+
+            case &quot;FAILED&quot;:
+<span class="nc" id="L104">                transacao.setStatus(TransactionStatus.DENIED.toString());</span>
+<span class="nc" id="L105">                transacao.setErrorMessage((String) transaction.get(&quot;error&quot;));</span>
+<span class="nc" id="L106">                logger.info(&quot;[MASTERCARD WEBHOOK] Transação falhou: {}&quot;, orderId);</span>
+<span class="nc" id="L107">                break;</span>
+
+            default:
+<span class="nc" id="L110">                logger.warn(&quot;[MASTERCARD WEBHOOK] Event desconhecido: {}&quot;, eventType);</span>
+<span class="nc" id="L111">                return;</span>
+        }
+
+<span class="nc" id="L114">        transacaoRepository.save(transacao);</span>
+<span class="nc" id="L115">        webhookService.notificarLojista(transacao);</span>
+<span class="nc" id="L116">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

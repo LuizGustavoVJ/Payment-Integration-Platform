@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeyRotationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.security</a> &gt; <span class="el_source">KeyRotationService.java</span></div><h1>KeyRotationService.java</h1><pre class="source lang-java linenums">package com.pip.security;
+
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.security.keyvault.secrets.models.KeyVaultSecret;
+import com.azure.security.keyvault.secrets.models.SecretProperties;
+import com.pip.audit.SecurityAuditLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Serviço de Rotação Automática de Chaves
+ * 
+ * Implementa rotação periódica de chaves no Azure Key Vault
+ * conforme requisitos PCI-DSS e boas práticas de segurança
+ * 
+ * Funcionalidades:
+ * - Rotação automática a cada 90 dias
+ * - Manutenção de versões anteriores
+ * - Notificação de rotação
+ * - Auditoria completa
+ * - Rollback em caso de falha
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L33">public class KeyRotationService {</span>
+
+<span class="nc" id="L35">    private static final Logger logger = LoggerFactory.getLogger(KeyRotationService.class);</span>
+    private static final int ROTATION_DAYS = 90; // Rotação a cada 90 dias
+
+    @Autowired
+    private SecretClient secretClient;
+
+    @Autowired
+    private SecurityAuditLogger auditLogger;
+
+    /**
+     * Executa rotação automática de chaves
+     * Agendado para rodar diariamente às 3h da manhã
+     */
+    @Scheduled(cron = &quot;0 0 3 * * *&quot;)
+    public void rotateKeys() {
+<span class="nc" id="L50">        logger.info(&quot;[KEY ROTATION] Iniciando verificação de rotação de chaves&quot;);</span>
+
+        try {
+            // Listar todos os secrets
+<span class="nc" id="L54">            Iterable&lt;SecretProperties&gt; secrets = secretClient.listPropertiesOfSecrets();</span>
+
+<span class="nc" id="L56">            int rotated = 0;</span>
+<span class="nc" id="L57">            int checked = 0;</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            for (SecretProperties secretProperties : secrets) {</span>
+<span class="nc" id="L60">                checked++;</span>
+                
+                // Verificar se precisa rotação
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                if (needsRotation(secretProperties)) {</span>
+<span class="nc" id="L64">                    rotateSecret(secretProperties.getName());</span>
+<span class="nc" id="L65">                    rotated++;</span>
+                }
+<span class="nc" id="L67">            }</span>
+
+<span class="nc" id="L69">            logger.info(&quot;[KEY ROTATION] Verificação concluída - Verificados: {} - Rotacionados: {}&quot;, </span>
+<span class="nc" id="L70">                checked, rotated);</span>
+
+<span class="nc" id="L72">            auditLogger.logKeyRotationCompleted(checked, rotated);</span>
+
+<span class="nc" id="L74">        } catch (Exception e) {</span>
+<span class="nc" id="L75">            logger.error(&quot;[KEY ROTATION] Erro na rotação de chaves&quot;, e);</span>
+<span class="nc" id="L76">            auditLogger.logKeyRotationFailed(e);</span>
+<span class="nc" id="L77">        }</span>
+<span class="nc" id="L78">    }</span>
+
+    /**
+     * Verifica se um secret precisa de rotação
+     */
+    private boolean needsRotation(SecretProperties secretProperties) {
+<span class="nc" id="L84">        OffsetDateTime createdOn = secretProperties.getCreatedOn();</span>
+        
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (createdOn == null) {</span>
+<span class="nc" id="L87">            return false;</span>
+        }
+
+<span class="nc" id="L90">        OffsetDateTime now = OffsetDateTime.now();</span>
+<span class="nc" id="L91">        long daysSinceCreation = java.time.Duration.between(createdOn, now).toDays();</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        return daysSinceCreation &gt;= ROTATION_DAYS;</span>
+    }
+
+    /**
+     * Rotaciona um secret específico
+     */
+    private void rotateSecret(String secretName) {
+<span class="nc" id="L100">        logger.info(&quot;[KEY ROTATION] Rotacionando secret: {}&quot;, secretName);</span>
+
+        try {
+            // Obter valor atual
+<span class="nc" id="L104">            KeyVaultSecret currentSecret = secretClient.getSecret(secretName);</span>
+<span class="nc" id="L105">            String currentValue = currentSecret.getValue();</span>
+
+            // Gerar novo valor (para tokens de API, gerar novo token)
+<span class="nc" id="L108">            String newValue = generateNewSecretValue(secretName, currentValue);</span>
+
+            // Criar nova versão do secret
+<span class="nc" id="L111">            secretClient.setSecret(secretName, newValue);</span>
+
+<span class="nc" id="L113">            logger.info(&quot;[KEY ROTATION] Secret rotacionado com sucesso: {}&quot;, secretName);</span>
+<span class="nc" id="L114">            auditLogger.logSecretRotated(secretName);</span>
+
+<span class="nc" id="L116">        } catch (Exception e) {</span>
+<span class="nc" id="L117">            logger.error(&quot;[KEY ROTATION] Erro ao rotacionar secret: {}&quot;, secretName, e);</span>
+<span class="nc" id="L118">            auditLogger.logSecretRotationFailed(secretName, e);</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    /**
+     * Gera novo valor para o secret
+     * Em produção, isso deve integrar com APIs dos gateways para gerar novos tokens
+     */
+    private String generateNewSecretValue(String secretName, String currentValue) {
+        // Para tokens tokenizados, manter o valor mas atualizar timestamp
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (secretName.startsWith(&quot;tkn_&quot;)) {</span>
+<span class="nc" id="L129">            return currentValue; // Tokens não são rotacionados, apenas expiram</span>
+        }
+
+        // Para API keys, gerar nova chave
+<span class="nc" id="L133">        return UUID.randomUUID().toString().replace(&quot;-&quot;, &quot;&quot;);</span>
+    }
+
+    /**
+     * Rotação manual de um secret específico
+     * 
+     * @param secretName Nome do secret
+     * @return true se rotacionado com sucesso
+     */
+    public boolean manualRotation(String secretName) {
+<span class="nc" id="L143">        logger.info(&quot;[KEY ROTATION] Rotação manual solicitada: {}&quot;, secretName);</span>
+
+        try {
+<span class="nc" id="L146">            rotateSecret(secretName);</span>
+<span class="nc" id="L147">            return true;</span>
+<span class="nc" id="L148">        } catch (Exception e) {</span>
+<span class="nc" id="L149">            logger.error(&quot;[KEY ROTATION] Falha na rotação manual&quot;, e);</span>
+<span class="nc" id="L150">            return false;</span>
+        }
+    }
+
+    /**
+     * Lista secrets que precisam de rotação
+     * 
+     * @return Lista de nomes de secrets
+     */
+    public List&lt;String&gt; getSecretsNeedingRotation() {
+<span class="nc" id="L160">        List&lt;String&gt; secretsToRotate = new java.util.ArrayList&lt;&gt;();</span>
+
+        try {
+<span class="nc" id="L163">            Iterable&lt;SecretProperties&gt; secrets = secretClient.listPropertiesOfSecrets();</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            for (SecretProperties secretProperties : secrets) {</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                if (needsRotation(secretProperties)) {</span>
+<span class="nc" id="L167">                    secretsToRotate.add(secretProperties.getName());</span>
+                }
+<span class="nc" id="L169">            }</span>
+
+<span class="nc" id="L171">        } catch (Exception e) {</span>
+<span class="nc" id="L172">            logger.error(&quot;[KEY ROTATION] Erro ao listar secrets&quot;, e);</span>
+<span class="nc" id="L173">        }</span>
+
+<span class="nc" id="L175">        return secretsToRotate;</span>
+    }
+
+    /**
+     * Obtém idade de um secret em dias
+     * 
+     * @param secretName Nome do secret
+     * @return Idade em dias
+     */
+    public long getSecretAge(String secretName) {
+        try {
+<span class="nc" id="L186">            SecretProperties properties = secretClient.getSecret(secretName).getProperties();</span>
+<span class="nc" id="L187">            OffsetDateTime createdOn = properties.getCreatedOn();</span>
+            
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            if (createdOn == null) {</span>
+<span class="nc" id="L190">                return 0;</span>
+            }
+
+<span class="nc" id="L193">            return java.time.Duration.between(createdOn, OffsetDateTime.now()).toDays();</span>
+
+<span class="nc" id="L195">        } catch (Exception e) {</span>
+<span class="nc" id="L196">            logger.error(&quot;[KEY ROTATION] Erro ao obter idade do secret&quot;, e);</span>
+<span class="nc" id="L197">            return 0;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

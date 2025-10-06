@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GatewayRoutingService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">GatewayRoutingService.java</span></div><h1>GatewayRoutingService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.model.Gateway;
+import com.pip.model.Lojista;
+import com.pip.model.LogTransacao;
+import com.pip.model.EventoLog;
+import com.pip.model.NivelLog;
+import com.pip.model.HealthStatus;
+import com.pip.repository.GatewayRepository;
+import com.pip.repository.LogTransacaoRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.ZonedDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Serviço responsável pelo roteamento inteligente de transações entre gateways
+ * 
+ * Implementa algoritmo de seleção baseado em múltiplos critérios:
+ * - Prioridade configurada
+ * - Taxa de sucesso histórica
+ * - Tempo médio de resposta
+ * - Status de saúde (health check)
+ * - Limites de processamento
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="fc" id="L33">public class GatewayRoutingService {</span>
+
+<span class="fc" id="L35">    private static final Logger logger = LoggerFactory.getLogger(GatewayRoutingService.class);</span>
+
+    @Autowired
+    private GatewayRepository gatewayRepository;
+
+    @Autowired
+    private LogTransacaoRepository logTransacaoRepository;
+
+    /**
+     * Seleciona o melhor gateway para processar uma transação
+     * 
+     * @param lojista Lojista que está processando a transação
+     * @param valor Valor da transação em centavos
+     * @return Gateway selecionado
+     * @throws RuntimeException se nenhum gateway disponível
+     */
+    public Gateway selecionarMelhorGateway(Lojista lojista, Long valor) {
+<span class="fc" id="L52">        logger.debug(&quot;Selecionando gateway para lojista {} e valor {}&quot;, lojista.getId(), valor);</span>
+
+        // Buscar todos os gateways ativos
+<span class="fc" id="L55">        List&lt;Gateway&gt; gatewaysDisponiveis = buscarGatewaysDisponiveis();</span>
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (gatewaysDisponiveis.isEmpty()) {</span>
+<span class="fc" id="L58">            logger.error(&quot;Nenhum gateway disponível no sistema&quot;);</span>
+<span class="fc" id="L59">            throw new RuntimeException(&quot;Nenhum gateway disponível para processar a transação&quot;);</span>
+        }
+
+        // Filtrar gateways que podem processar o valor
+<span class="fc" id="L63">        gatewaysDisponiveis = filtrarPorLimites(gatewaysDisponiveis, valor);</span>
+
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (gatewaysDisponiveis.isEmpty()) {</span>
+<span class="nc" id="L66">            logger.error(&quot;Nenhum gateway com capacidade para processar valor {}&quot;, valor);</span>
+<span class="nc" id="L67">            throw new RuntimeException(&quot;Nenhum gateway com capacidade disponível para o valor solicitado&quot;);</span>
+        }
+
+        // Aplicar algoritmo de seleção inteligente
+<span class="fc" id="L71">        Gateway gatewaySelecionado = aplicarAlgoritmoSelecao(gatewaysDisponiveis, valor);</span>
+
+<span class="fc" id="L73">        logger.info(&quot;Gateway selecionado: {} (score: {})&quot;, </span>
+<span class="fc" id="L74">            gatewaySelecionado.getCodigo(), </span>
+<span class="fc" id="L75">            calcularScore(gatewaySelecionado));</span>
+
+        // Registrar decisão de roteamento
+<span class="fc" id="L78">        registrarDecisaoRoteamento(lojista, gatewaySelecionado, valor, gatewaysDisponiveis.size());</span>
+
+<span class="fc" id="L80">        return gatewaySelecionado;</span>
+    }
+
+    /**
+     * Seleciona gateway alternativo em caso de falha (fallback)
+     * 
+     * @param lojista Lojista que está processando a transação
+     * @param gatewayFalhou Gateway que falhou
+     * @param valor Valor da transação em centavos
+     * @return Gateway alternativo ou null se não houver
+     */
+    public Gateway selecionarGatewayFallback(Lojista lojista, Gateway gatewayFalhou, Long valor) {
+<span class="fc" id="L92">        logger.warn(&quot;Selecionando gateway fallback. Gateway falho: {}&quot;, gatewayFalhou.getCodigo());</span>
+
+<span class="fc" id="L94">        List&lt;Gateway&gt; gatewaysDisponiveis = buscarGatewaysDisponiveis();</span>
+
+        // Remover o gateway que falhou
+<span class="fc" id="L97">        gatewaysDisponiveis = gatewaysDisponiveis.stream()</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            .filter(g -&gt; !g.getId().equals(gatewayFalhou.getId()))</span>
+<span class="fc" id="L99">            .collect(Collectors.toList());</span>
+
+        // Filtrar por limites
+<span class="fc" id="L102">        gatewaysDisponiveis = filtrarPorLimites(gatewaysDisponiveis, valor);</span>
+
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">        if (gatewaysDisponiveis.isEmpty()) {</span>
+<span class="nc" id="L105">            logger.error(&quot;Nenhum gateway disponível para fallback&quot;);</span>
+<span class="nc" id="L106">            return null;</span>
+        }
+
+        // Para fallback, priorizar estabilidade (alta taxa de sucesso)
+<span class="fc" id="L110">        Gateway gatewayFallback = gatewaysDisponiveis.stream()</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">            .filter(g -&gt; g.getTaxaSucesso() &gt; 95.0)</span>
+<span class="fc" id="L112">            .max(Comparator.comparing(Gateway::getTaxaSucesso))</span>
+<span class="fc" id="L113">            .orElse(gatewaysDisponiveis.get(0));</span>
+
+<span class="fc" id="L115">        logger.info(&quot;Gateway fallback selecionado: {}&quot;, gatewayFallback.getCodigo());</span>
+
+<span class="fc" id="L117">        return gatewayFallback;</span>
+    }
+
+    /**
+     * Busca gateways disponíveis para processamento
+     */
+    private List&lt;Gateway&gt; buscarGatewaysDisponiveis() {
+<span class="fc" id="L124">        return gatewayRepository.findAll().stream()</span>
+<span class="fc" id="L125">            .filter(g -&gt; &quot;ACTIVE&quot;.equals(g.getStatus().name()))</span>
+<span class="fc" id="L126">            .filter(g -&gt; g.isHealthy())</span>
+<span class="fc" id="L127">            .collect(Collectors.toList());</span>
+    }
+
+    /**
+     * Filtra gateways que podem processar o valor solicitado
+     */
+    private List&lt;Gateway&gt; filtrarPorLimites(List&lt;Gateway&gt; gateways, Long valor) {
+<span class="fc" id="L134">        return gateways.stream()</span>
+<span class="fc" id="L135">            .filter(g -&gt; g.podeProcessarTransacao(valor))</span>
+<span class="fc" id="L136">            .collect(Collectors.toList());</span>
+    }
+
+    /**
+     * Aplica algoritmo de seleção baseado em score
+     */
+    private Gateway aplicarAlgoritmoSelecao(List&lt;Gateway&gt; gateways, Long valor) {
+<span class="fc" id="L143">        Map&lt;Gateway, Double&gt; scores = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        for (Gateway gateway : gateways) {</span>
+<span class="fc" id="L146">            double score = calcularScore(gateway);</span>
+<span class="fc" id="L147">            scores.put(gateway, score);</span>
+<span class="fc" id="L148">        }</span>
+
+        // Retornar gateway com maior score
+<span class="fc" id="L151">        return scores.entrySet().stream()</span>
+<span class="fc" id="L152">            .max(Map.Entry.comparingByValue())</span>
+<span class="fc" id="L153">            .map(Map.Entry::getKey)</span>
+<span class="fc" id="L154">            .orElse(gateways.get(0));</span>
+    }
+
+    /**
+     * Calcula score do gateway baseado em múltiplos fatores
+     * 
+     * Fatores considerados:
+     * - Taxa de sucesso (40%)
+     * - Tempo de resposta (30%)
+     * - Prioridade configurada (20%)
+     * - Capacidade disponível (10%)
+     */
+    private double calcularScore(Gateway gateway) {
+<span class="fc" id="L167">        double score = 0.0;</span>
+
+        // Fator 1: Taxa de sucesso (peso 40%)
+        // Taxa de 100% = 40 pontos, 0% = 0 pontos
+<span class="fc" id="L171">        score += (gateway.getTaxaSucesso() / 100.0) * 40.0;</span>
+
+        // Fator 2: Tempo de resposta (peso 30%)
+        // Tempo &lt; 500ms = 30 pontos, &gt; 5000ms = 0 pontos
+<span class="fc" id="L175">        double tempoScore = Math.max(0, 30.0 - (gateway.getTempoRespostaMedio() / 1000.0) * 6.0);</span>
+<span class="fc" id="L176">        score += Math.min(tempoScore, 30.0);</span>
+
+        // Fator 3: Prioridade configurada (peso 20%)
+        // Prioridade 1 = 20 pontos, prioridade 100 = 0 pontos
+<span class="fc" id="L180">        score += (100.0 - gateway.getPrioridade()) / 100.0 * 20.0;</span>
+
+        // Fator 4: Capacidade disponível (peso 10%)
+        // Quanto mais capacidade livre, melhor
+<span class="fc" id="L184">        double percentualUtilizado = gateway.getPercentualLimiteUtilizado();</span>
+<span class="fc" id="L185">        score += (100.0 - percentualUtilizado) / 100.0 * 10.0;</span>
+
+<span class="fc" id="L187">        return score;</span>
+    }
+
+    /**
+     * Registra decisão de roteamento no log
+     */
+    private void registrarDecisaoRoteamento(Lojista lojista, Gateway gateway, Long valor, int gatewaysAvaliados) {
+<span class="fc" id="L194">        LogTransacao log = new LogTransacao();</span>
+<span class="fc" id="L195">        log.setGateway(gateway);</span>
+<span class="fc" id="L196">        log.setLojista(lojista);</span>
+<span class="fc" id="L197">        log.setEvento(EventoLog.GATEWAY_SELECTION);</span>
+<span class="fc" id="L198">        log.setNivel(NivelLog.INFO);</span>
+<span class="fc" id="L199">        log.setMensagem(&quot;Gateway selecionado: &quot; + gateway.getCodigo());</span>
+<span class="fc" id="L200">        log.setMetadata(String.format(</span>
+            &quot;{\&quot;lojista_id\&quot;:\&quot;%s\&quot;,\&quot;gateway_selecionado\&quot;:\&quot;%s\&quot;,\&quot;valor\&quot;:%d,\&quot;gateways_avaliados\&quot;:%d,\&quot;score\&quot;:%.2f}&quot;,
+<span class="fc" id="L202">            lojista.getId(),</span>
+<span class="fc" id="L203">            gateway.getCodigo(),</span>
+            valor,
+<span class="fc" id="L205">            gatewaysAvaliados,</span>
+<span class="fc" id="L206">            calcularScore(gateway)</span>
+        ));
+<span class="fc" id="L208">        log.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="fc" id="L210">        logTransacaoRepository.save(log);</span>
+<span class="fc" id="L211">    }</span>
+
+    /**
+     * Verifica saúde de todos os gateways e atualiza status
+     * 
+     * Este método deve ser executado periodicamente (ex: a cada 1 minuto)
+     */
+    public void verificarSaudeGateways() {
+<span class="fc" id="L219">        logger.debug(&quot;Iniciando verificação de saúde dos gateways&quot;);</span>
+
+<span class="fc" id="L221">        List&lt;Gateway&gt; gateways = gatewayRepository.findAll();</span>
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">        for (Gateway gateway : gateways) {</span>
+            try {
+<span class="fc" id="L225">                boolean saudavel = avaliarSaudeGateway(gateway);</span>
+
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">                if (saudavel) {</span>
+<span class="fc" id="L228">                    gateway.atualizarHealthCheck(com.pip.model.HealthStatus.UP);</span>
+                } else {
+<span class="nc" id="L230">                    gateway.atualizarHealthCheck(com.pip.model.HealthStatus.DOWN);</span>
+                }
+
+<span class="fc" id="L233">                gatewayRepository.save(gateway);</span>
+
+<span class="fc" id="L235">                logger.debug(&quot;Gateway {} - Status: {}&quot;, gateway.getCodigo(), gateway.getHealthStatus());</span>
+
+<span class="nc" id="L237">            } catch (Exception e) {</span>
+<span class="nc" id="L238">                logger.error(&quot;Erro ao verificar saúde do gateway {}: {}&quot;, gateway.getCodigo(), e.getMessage());</span>
+<span class="nc" id="L239">                gateway.atualizarHealthCheck(com.pip.model.HealthStatus.UNKNOWN);</span>
+<span class="nc" id="L240">                gatewayRepository.save(gateway);</span>
+<span class="fc" id="L241">            }</span>
+<span class="fc" id="L242">        }</span>
+
+<span class="fc" id="L244">        logger.info(&quot;Verificação de saúde concluída. Total de gateways: {}&quot;, gateways.size());</span>
+<span class="fc" id="L245">    }</span>
+
+    /**
+     * Avalia saúde de um gateway específico
+     * 
+     * Critérios:
+     * - Taxa de sucesso &gt; 90%
+     * - Tempo médio de resposta &lt; 5 segundos
+     * - Última verificação há menos de 5 minutos
+     */
+    private boolean avaliarSaudeGateway(Gateway gateway) {
+        // Critério 1: Taxa de sucesso
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (gateway.getTaxaSucesso() &lt; 90.0) {</span>
+<span class="nc" id="L258">            logger.warn(&quot;Gateway {} com taxa de sucesso baixa: {}%&quot;, </span>
+<span class="nc" id="L259">                gateway.getCodigo(), gateway.getTaxaSucesso());</span>
+<span class="nc" id="L260">            return false;</span>
+        }
+
+        // Critério 2: Tempo de resposta
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">        if (gateway.getTempoRespostaMedio() &gt; 5000) {</span>
+<span class="nc" id="L265">            logger.warn(&quot;Gateway {} com tempo de resposta alto: {}ms&quot;, </span>
+<span class="nc" id="L266">                gateway.getCodigo(), gateway.getTempoRespostaMedio());</span>
+<span class="nc" id="L267">            return false;</span>
+        }
+
+        // Critério 3: Última verificação (se houver)
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">        if (gateway.getLastHealthCheck() != null) {</span>
+<span class="fc" id="L272">            ZonedDateTime limiteVerificacao = ZonedDateTime.now().minusMinutes(5);</span>
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">            if (gateway.getLastHealthCheck().isBefore(limiteVerificacao)) {</span>
+<span class="nc" id="L274">                logger.warn(&quot;Gateway {} sem verificação recente&quot;, gateway.getCodigo());</span>
+<span class="nc" id="L275">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L279">        return true;</span>
+    }
+
+    /**
+     * Obtém estatísticas de roteamento
+     */
+    public Map&lt;String, Object&gt; obterEstatisticasRoteamento() {
+<span class="fc" id="L286">        Map&lt;String, Object&gt; stats = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L288">        List&lt;Gateway&gt; gateways = gatewayRepository.findAll();</span>
+
+<span class="fc bfc" id="L290" title="All 2 branches covered.">        for (Gateway gateway : gateways) {</span>
+<span class="fc" id="L291">            Map&lt;String, Object&gt; gatewayStats = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L292">            gatewayStats.put(&quot;codigo&quot;, gateway.getCodigo());</span>
+<span class="fc" id="L293">            gatewayStats.put(&quot;status&quot;, gateway.getStatus().name());</span>
+<span class="fc" id="L294">            gatewayStats.put(&quot;healthStatus&quot;, gateway.getHealthStatus().name());</span>
+<span class="fc" id="L295">            gatewayStats.put(&quot;totalTransacoes&quot;, gateway.getTotalTransacoes());</span>
+<span class="fc" id="L296">            gatewayStats.put(&quot;totalSucesso&quot;, gateway.getTotalSucesso());</span>
+<span class="fc" id="L297">            gatewayStats.put(&quot;totalFalhas&quot;, gateway.getTotalFalhas());</span>
+<span class="fc" id="L298">            gatewayStats.put(&quot;taxaSucesso&quot;, gateway.getTaxaSucesso());</span>
+<span class="fc" id="L299">            gatewayStats.put(&quot;tempoRespostaMedio&quot;, gateway.getTempoRespostaMedio());</span>
+<span class="fc" id="L300">            gatewayStats.put(&quot;volumeProcessadoHoje&quot;, gateway.getVolumeProcessadoHoje());</span>
+<span class="fc" id="L301">            gatewayStats.put(&quot;limiteDiario&quot;, gateway.getLimiteDiario());</span>
+<span class="fc" id="L302">            gatewayStats.put(&quot;percentualUtilizado&quot;, gateway.getPercentualLimiteUtilizado());</span>
+<span class="fc" id="L303">            gatewayStats.put(&quot;score&quot;, calcularScore(gateway));</span>
+
+<span class="fc" id="L305">            stats.put(gateway.getCodigo(), gatewayStats);</span>
+<span class="fc" id="L306">        }</span>
+
+<span class="fc" id="L308">        return stats;</span>
+    }
+
+    /**
+     * Rebalanceia prioridades dos gateways baseado em performance
+     * 
+     * Este método deve ser executado periodicamente (ex: a cada 1 hora)
+     */
+    public void rebalancearGateways() {
+<span class="fc" id="L317">        logger.info(&quot;Iniciando rebalanceamento de gateways&quot;);</span>
+
+<span class="fc" id="L319">        List&lt;Gateway&gt; gateways = gatewayRepository.findAll();</span>
+
+<span class="fc bfc" id="L321" title="All 2 branches covered.">        for (Gateway gateway : gateways) {</span>
+<span class="fc" id="L322">            int prioridadeAtual = gateway.getPrioridade();</span>
+<span class="fc" id="L323">            int novaPrioridade = calcularNovaPrioridade(gateway);</span>
+
+<span class="pc bpc" id="L325" title="1 of 2 branches missed.">            if (prioridadeAtual != novaPrioridade) {</span>
+<span class="nc" id="L326">                logger.info(&quot;Ajustando prioridade do gateway {} de {} para {}&quot;, </span>
+<span class="nc" id="L327">                    gateway.getCodigo(), prioridadeAtual, novaPrioridade);</span>
+                
+<span class="nc" id="L329">                gateway.setPrioridade(novaPrioridade);</span>
+<span class="nc" id="L330">                gatewayRepository.save(gateway);</span>
+            }
+<span class="fc" id="L332">        }</span>
+
+<span class="fc" id="L334">        logger.info(&quot;Rebalanceamento concluído&quot;);</span>
+<span class="fc" id="L335">    }</span>
+
+    /**
+     * Calcula nova prioridade baseada em performance
+     */
+    private int calcularNovaPrioridade(Gateway gateway) {
+<span class="fc" id="L341">        int prioridade = gateway.getPrioridade();</span>
+
+        // Gateway com excelente performance: diminuir prioridade (número menor = maior prioridade)
+<span class="pc bpc" id="L344" title="3 of 4 branches missed.">        if (gateway.getTaxaSucesso() &gt; 98.0 &amp;&amp; gateway.getTempoRespostaMedio() &lt; 1000) {</span>
+<span class="nc" id="L345">            prioridade = Math.max(1, prioridade - 5);</span>
+        }
+        // Gateway com boa performance: manter ou melhorar levemente
+<span class="pc bpc" id="L348" title="3 of 4 branches missed.">        else if (gateway.getTaxaSucesso() &gt; 95.0 &amp;&amp; gateway.getTempoRespostaMedio() &lt; 2000) {</span>
+<span class="nc" id="L349">            prioridade = Math.max(1, prioridade - 1);</span>
+        }
+        // Gateway com performance ruim: aumentar prioridade (número maior = menor prioridade)
+<span class="pc bpc" id="L352" title="2 of 4 branches missed.">        else if (gateway.getTaxaSucesso() &lt; 90.0 || gateway.getTempoRespostaMedio() &gt; 3000) {</span>
+<span class="nc" id="L353">            prioridade = Math.min(100, prioridade + 5);</span>
+        }
+
+<span class="fc" id="L356">        return prioridade;</span>
+    }
+
+    /**
+     * Reseta volumes processados diariamente
+     * 
+     * Este método deve ser executado diariamente à meia-noite
+     */
+    public void resetarVolumesProcessados() {
+<span class="nc" id="L365">        logger.info(&quot;Resetando volumes processados dos gateways&quot;);</span>
+
+<span class="nc" id="L367">        List&lt;Gateway&gt; gateways = gatewayRepository.findAll();</span>
+
+<span class="nc bnc" id="L369" title="All 2 branches missed.">        for (Gateway gateway : gateways) {</span>
+<span class="nc" id="L370">            gateway.resetarVolumeProcessadoHoje();</span>
+<span class="nc" id="L371">            gatewayRepository.save(gateway);</span>
+<span class="nc" id="L372">        }</span>
+
+<span class="nc" id="L374">        logger.info(&quot;Volumes resetados. Total de gateways: {}&quot;, gateways.size());</span>
+<span class="nc" id="L375">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

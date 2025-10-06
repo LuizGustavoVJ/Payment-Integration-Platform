@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DetokenizationResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">DetokenizationResponse.java</span></div><h1>DetokenizationResponse.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+/**
+ * DTO para resposta de destokenização
+ */
+public class DetokenizationResponse {
+    
+    private String pan;
+    private String cvv;
+    private String expiryDate;
+    private String cardholderName;
+    private String requestId;
+    
+    // Constructors
+<span class="nc" id="L15">    public DetokenizationResponse() {}</span>
+    
+<span class="nc" id="L17">    public DetokenizationResponse(String pan, String cvv, String expiryDate, String cardholderName, String requestId) {</span>
+<span class="nc" id="L18">        this.pan = pan;</span>
+<span class="nc" id="L19">        this.cvv = cvv;</span>
+<span class="nc" id="L20">        this.expiryDate = expiryDate;</span>
+<span class="nc" id="L21">        this.cardholderName = cardholderName;</span>
+<span class="nc" id="L22">        this.requestId = requestId;</span>
+<span class="nc" id="L23">    }</span>
+    
+    // Builder pattern
+    public static DetokenizationResponseBuilder builder() {
+<span class="nc" id="L27">        return new DetokenizationResponseBuilder();</span>
+    }
+    
+    // Getters and Setters
+    public String getPan() {
+<span class="nc" id="L32">        return pan;</span>
+    }
+    
+    public void setPan(String pan) {
+<span class="nc" id="L36">        this.pan = pan;</span>
+<span class="nc" id="L37">    }</span>
+    
+    public String getCvv() {
+<span class="nc" id="L40">        return cvv;</span>
+    }
+    
+    public void setCvv(String cvv) {
+<span class="nc" id="L44">        this.cvv = cvv;</span>
+<span class="nc" id="L45">    }</span>
+    
+    public String getExpiryDate() {
+<span class="nc" id="L48">        return expiryDate;</span>
+    }
+    
+    public void setExpiryDate(String expiryDate) {
+<span class="nc" id="L52">        this.expiryDate = expiryDate;</span>
+<span class="nc" id="L53">    }</span>
+    
+    public String getCardholderName() {
+<span class="nc" id="L56">        return cardholderName;</span>
+    }
+    
+    public void setCardholderName(String cardholderName) {
+<span class="nc" id="L60">        this.cardholderName = cardholderName;</span>
+<span class="nc" id="L61">    }</span>
+    
+    public String getRequestId() {
+<span class="nc" id="L64">        return requestId;</span>
+    }
+    
+    public void setRequestId(String requestId) {
+<span class="nc" id="L68">        this.requestId = requestId;</span>
+<span class="nc" id="L69">    }</span>
+    
+    // Builder class
+<span class="nc" id="L72">    public static class DetokenizationResponseBuilder {</span>
+<span class="nc" id="L73">        private DetokenizationResponse response = new DetokenizationResponse();</span>
+        
+        public DetokenizationResponseBuilder pan(String pan) {
+<span class="nc" id="L76">            response.pan = pan;</span>
+<span class="nc" id="L77">            return this;</span>
+        }
+        
+        public DetokenizationResponseBuilder cvv(String cvv) {
+<span class="nc" id="L81">            response.cvv = cvv;</span>
+<span class="nc" id="L82">            return this;</span>
+        }
+        
+        public DetokenizationResponseBuilder expiryDate(String expiryDate) {
+<span class="nc" id="L86">            response.expiryDate = expiryDate;</span>
+<span class="nc" id="L87">            return this;</span>
+        }
+        
+        public DetokenizationResponseBuilder cardholderName(String cardholderName) {
+<span class="nc" id="L91">            response.cardholderName = cardholderName;</span>
+<span class="nc" id="L92">            return this;</span>
+        }
+        
+        public DetokenizationResponseBuilder requestId(String requestId) {
+<span class="nc" id="L96">            response.requestId = requestId;</span>
+<span class="nc" id="L97">            return this;</span>
+        }
+        
+        public DetokenizationResponse build() {
+<span class="nc" id="L101">            return response;</span>
+        }
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

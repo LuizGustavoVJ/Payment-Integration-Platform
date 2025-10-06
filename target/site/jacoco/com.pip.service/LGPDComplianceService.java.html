@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LGPDComplianceService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">LGPDComplianceService.java</span></div><h1>LGPDComplianceService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Serviço para gerenciar compliance com a LGPD (Lei Geral de Proteção de Dados)
+ * Implementa funcionalidades de privacidade e proteção de dados pessoais
+ */
+@Service
+<span class="nc" id="L17">public class LGPDComplianceService {</span>
+    
+<span class="nc" id="L19">    private static final Logger logger = LoggerFactory.getLogger(LGPDComplianceService.class);</span>
+    
+    @Autowired
+    private AuditLogService auditLogService;
+    
+    /**
+     * Tipos de dados pessoais conforme LGPD
+     */
+<span class="nc" id="L27">    public enum PersonalDataType {</span>
+<span class="nc" id="L28">        NOME,</span>
+<span class="nc" id="L29">        CPF,</span>
+<span class="nc" id="L30">        EMAIL,</span>
+<span class="nc" id="L31">        TELEFONE,</span>
+<span class="nc" id="L32">        ENDERECO,</span>
+<span class="nc" id="L33">        DADOS_BANCARIOS,</span>
+<span class="nc" id="L34">        DADOS_CARTAO,</span>
+<span class="nc" id="L35">        DADOS_BIOMETRICOS,</span>
+<span class="nc" id="L36">        DADOS_SAUDE,</span>
+<span class="nc" id="L37">        DADOS_FINANCEIROS</span>
+    }
+    
+    /**
+     * Registra consentimento do titular dos dados
+     */
+    public void registerConsent(String userId, String purpose, String dataTypes) {
+<span class="nc" id="L44">        Map&lt;String, Object&gt; consentData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L45">        consentData.put(&quot;userId&quot;, userId);</span>
+<span class="nc" id="L46">        consentData.put(&quot;purpose&quot;, purpose);</span>
+<span class="nc" id="L47">        consentData.put(&quot;dataTypes&quot;, dataTypes);</span>
+<span class="nc" id="L48">        consentData.put(&quot;timestamp&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L49">        consentData.put(&quot;ipAddress&quot;, getCurrentIpAddress());</span>
+        
+<span class="nc" id="L51">        logger.info(&quot;Consent registered: {}&quot;, consentData);</span>
+        
+        // Registrar no log de auditoria
+<span class="nc" id="L54">        Map&lt;String, Object&gt; auditDetails = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L55">        auditDetails.put(&quot;purpose&quot;, purpose);</span>
+<span class="nc" id="L56">        auditDetails.put(&quot;dataTypes&quot;, dataTypes);</span>
+<span class="nc" id="L57">        auditLogService.logAuditEvent(</span>
+            AuditLogService.AuditAction.CONFIGURATION_CHANGED,
+            userId,
+            &quot;consent&quot;,
+            auditDetails
+        );
+<span class="nc" id="L63">    }</span>
+    
+    /**
+     * Revoga consentimento do titular dos dados
+     */
+    public void revokeConsent(String userId, String consentId) {
+<span class="nc" id="L69">        logger.info(&quot;Consent revoked - userId: {}, consentId: {}&quot;, userId, consentId);</span>
+        
+<span class="nc" id="L71">        Map&lt;String, Object&gt; auditDetails = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L72">        auditDetails.put(&quot;consentId&quot;, consentId);</span>
+<span class="nc" id="L73">        auditDetails.put(&quot;revokedAt&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L74">        auditLogService.logAuditEvent(</span>
+            AuditLogService.AuditAction.CONFIGURATION_CHANGED,
+            userId,
+            &quot;consent-revocation&quot;,
+            auditDetails
+        );
+<span class="nc" id="L80">    }</span>
+    
+    /**
+     * Solicita exclusão de dados pessoais (Direito ao Esquecimento)
+     */
+    public void requestDataDeletion(String userId, String reason) {
+<span class="nc" id="L86">        logger.info(&quot;Data deletion requested - userId: {}, reason: {}&quot;, userId, reason);</span>
+        
+<span class="nc" id="L88">        Map&lt;String, Object&gt; auditDetails = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L89">        auditDetails.put(&quot;reason&quot;, reason);</span>
+<span class="nc" id="L90">        auditDetails.put(&quot;requestedAt&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L91">        auditDetails.put(&quot;status&quot;, &quot;PENDING&quot;);</span>
+<span class="nc" id="L92">        auditLogService.logAuditEvent(</span>
+            AuditLogService.AuditAction.SENSITIVE_DATA_ACCESSED,
+            userId,
+            &quot;data-deletion-request&quot;,
+            auditDetails
+        );
+        
+        // TODO: Implementar processo de exclusão de dados
+        // 1. Verificar obrigações legais de retenção
+        // 2. Anonimizar dados que devem ser mantidos
+        // 3. Excluir dados que podem ser removidos
+        // 4. Notificar o titular sobre a conclusão
+<span class="nc" id="L104">    }</span>
+    
+    /**
+     * Exporta dados pessoais do titular (Direito de Portabilidade)
+     */
+    public Map&lt;String, Object&gt; exportPersonalData(String userId) {
+<span class="nc" id="L110">        logger.info(&quot;Personal data export requested - userId: {}&quot;, userId);</span>
+        
+<span class="nc" id="L112">        auditLogService.logSensitiveDataAccess(userId, &quot;PERSONAL_DATA_EXPORT&quot;, userId);</span>
+        
+<span class="nc" id="L114">        Map&lt;String, Object&gt; personalData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L115">        personalData.put(&quot;userId&quot;, userId);</span>
+<span class="nc" id="L116">        personalData.put(&quot;exportedAt&quot;, LocalDateTime.now());</span>
+<span class="nc" id="L117">        personalData.put(&quot;format&quot;, &quot;JSON&quot;);</span>
+        
+        // TODO: Coletar todos os dados pessoais do usuário
+        // personalData.put(&quot;profile&quot;, getUserProfile(userId));
+        // personalData.put(&quot;transactions&quot;, getUserTransactions(userId));
+        // personalData.put(&quot;consents&quot;, getUserConsents(userId));
+        
+<span class="nc" id="L124">        return personalData;</span>
+    }
+    
+    /**
+     * Registra acesso a dados sensíveis
+     */
+    public void logSensitiveDataAccess(String userId, PersonalDataType dataType, String purpose) {
+<span class="nc" id="L131">        logger.info(&quot;Sensitive data accessed - userId: {}, dataType: {}, purpose: {}&quot;, </span>
+            userId, dataType, purpose);
+        
+<span class="nc" id="L134">        auditLogService.logSensitiveDataAccess(userId, dataType.name(), purpose);</span>
+<span class="nc" id="L135">    }</span>
+    
+    /**
+     * Verifica se o usuário tem consentimento ativo para determinado propósito
+     */
+    public boolean hasActiveConsent(String userId, String purpose) {
+        // TODO: Implementar verificação de consentimento no banco de dados
+<span class="nc" id="L142">        logger.debug(&quot;Checking consent - userId: {}, purpose: {}&quot;, userId, purpose);</span>
+<span class="nc" id="L143">        return true; // Placeholder</span>
+    }
+    
+    /**
+     * Anonimiza dados pessoais
+     */
+    public String anonymizeData(String data, PersonalDataType dataType) {
+<span class="nc bnc" id="L150" title="All 4 branches missed.">        if (data == null || data.isEmpty()) {</span>
+<span class="nc" id="L151">            return data;</span>
+        }
+        
+<span class="nc bnc" id="L154" title="All 5 branches missed.">        switch (dataType) {</span>
+            case CPF:
+<span class="nc" id="L156">                return &quot;***.***.***-**&quot;;</span>
+            case EMAIL:
+<span class="nc" id="L158">                return data.replaceAll(&quot;(.{2})(.*)(@.*)&quot;, &quot;$1***$3&quot;);</span>
+            case TELEFONE:
+<span class="nc" id="L160">                return &quot;(**) ****-****&quot;;</span>
+            case DADOS_CARTAO:
+<span class="nc" id="L162">                return &quot;**** **** **** &quot; + data.substring(Math.max(0, data.length() - 4));</span>
+            default:
+<span class="nc" id="L164">                return &quot;***&quot;;</span>
+        }
+    }
+    
+    /**
+     * Calcula período de retenção de dados conforme política
+     */
+    public LocalDateTime calculateRetentionPeriod(PersonalDataType dataType) {
+        // Períodos de retenção conforme regulamentações
+        int retentionYears;
+        
+<span class="nc bnc" id="L175" title="All 3 branches missed.">        switch (dataType) {</span>
+            case DADOS_FINANCEIROS:
+            case DADOS_BANCARIOS:
+<span class="nc" id="L178">                retentionYears = 5; // Conforme legislação fiscal</span>
+<span class="nc" id="L179">                break;</span>
+            case DADOS_CARTAO:
+<span class="nc" id="L181">                retentionYears = 1; // PCI-DSS</span>
+<span class="nc" id="L182">                break;</span>
+            default:
+<span class="nc" id="L184">                retentionYears = 2; // Período padrão</span>
+        }
+        
+<span class="nc" id="L187">        return LocalDateTime.now().plusYears(retentionYears);</span>
+    }
+    
+    private String getCurrentIpAddress() {
+        // TODO: Obter IP do contexto da requisição
+<span class="nc" id="L192">        return &quot;0.0.0.0&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

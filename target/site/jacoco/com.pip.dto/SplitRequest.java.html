@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SplitRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">SplitRequest.java</span></div><h1>SplitRequest.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+import java.util.List;
+
+/**
+ * DTO para requisição de Split de Pagamentos
+ * 
+ * Permite dividir o valor de uma transação entre múltiplos recebedores
+ * Usado principalmente no PagSeguro e Mercado Pago (Marketplace)
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+<span class="nc" id="L13">public class SplitRequest {</span>
+    
+    private List&lt;SplitReceiver&gt; receivers;
+    private String splitType; // &quot;PERCENTAGE&quot; ou &quot;FIXED&quot;
+    private boolean chargeProcessingFee;
+    
+<span class="nc" id="L19">    public static class SplitReceiver {</span>
+        private String receiverId;
+        private String receiverName;
+        private String receiverDocument;
+        private Double amount; // Valor fixo ou percentual
+        private String receiverType; // &quot;SELLER&quot;, &quot;MARKETPLACE&quot;, &quot;PARTNER&quot;
+        private boolean chargeFee;
+        
+        // Getters e Setters
+<span class="nc" id="L28">        public String getReceiverId() { return receiverId; }</span>
+<span class="nc" id="L29">        public void setReceiverId(String receiverId) { this.receiverId = receiverId; }</span>
+        
+<span class="nc" id="L31">        public String getReceiverName() { return receiverName; }</span>
+<span class="nc" id="L32">        public void setReceiverName(String receiverName) { this.receiverName = receiverName; }</span>
+        
+<span class="nc" id="L34">        public String getReceiverDocument() { return receiverDocument; }</span>
+<span class="nc" id="L35">        public void setReceiverDocument(String receiverDocument) { this.receiverDocument = receiverDocument; }</span>
+        
+<span class="nc" id="L37">        public Double getAmount() { return amount; }</span>
+<span class="nc" id="L38">        public void setAmount(Double amount) { this.amount = amount; }</span>
+        
+<span class="nc" id="L40">        public String getReceiverType() { return receiverType; }</span>
+<span class="nc" id="L41">        public void setReceiverType(String receiverType) { this.receiverType = receiverType; }</span>
+        
+<span class="nc" id="L43">        public boolean isChargeFee() { return chargeFee; }</span>
+<span class="nc" id="L44">        public void setChargeFee(boolean chargeFee) { this.chargeFee = chargeFee; }</span>
+    }
+    
+    // Getters e Setters
+<span class="nc" id="L48">    public List&lt;SplitReceiver&gt; getReceivers() { return receivers; }</span>
+<span class="nc" id="L49">    public void setReceivers(List&lt;SplitReceiver&gt; receivers) { this.receivers = receivers; }</span>
+    
+<span class="nc" id="L51">    public String getSplitType() { return splitType; }</span>
+<span class="nc" id="L52">    public void setSplitType(String splitType) { this.splitType = splitType; }</span>
+    
+<span class="nc" id="L54">    public boolean isChargeProcessingFee() { return chargeProcessingFee; }</span>
+<span class="nc" id="L55">    public void setChargeProcessingFee(boolean chargeProcessingFee) { this.chargeProcessingFee = chargeProcessingFee; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
