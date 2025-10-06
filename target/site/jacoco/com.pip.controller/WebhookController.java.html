@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.controller</a> &gt; <span class="el_source">WebhookController.java</span></div><h1>WebhookController.java</h1><pre class="source lang-java linenums">package com.pip.controller;
+
+import com.pip.dto.WebhookConfigRequest;
+import com.pip.model.Lojista;
+import com.pip.model.Webhook;
+import com.pip.model.EventoWebhook;
+import com.pip.model.WebhookEvent;
+import com.pip.repository.LojistaRepository;
+import com.pip.repository.WebhookRepository;
+import com.pip.repository.WebhookEventRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.ZonedDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Controller para gerenciamento de webhooks
+ * 
+ * Endpoints para configuração e monitoramento de webhooks:
+ * - POST /webhooks: Criar/atualizar configuração de webhook
+ * - GET /webhooks: Listar configurações de webhook
+ * - DELETE /webhooks/{id}: Remover configuração de webhook
+ * - GET /webhooks/events: Listar eventos de webhook
+ * - POST /webhooks/test: Testar envio de webhook
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@RestController
+@RequestMapping(&quot;/api/webhooks&quot;)
+@Tag(name = &quot;Webhooks&quot;, description = &quot;Gerenciamento de configurações e eventos de webhooks&quot;)
+<span class="nc" id="L47">public class WebhookController {</span>
+
+<span class="nc" id="L49">    private static final Logger logger = LoggerFactory.getLogger(WebhookController.class);</span>
+
+    @Autowired
+    private LojistaRepository lojistaRepository;
+
+    @Autowired
+    private WebhookRepository webhookRepository;
+
+    @Autowired
+    private WebhookEventRepository webhookEventRepository;
+
+    /**
+     * Cria ou atualiza configuração de webhook
+     */
+    @PostMapping
+    @Operation(summary = &quot;Configurar webhook&quot;, 
+               description = &quot;Cria ou atualiza a configuração de webhook do lojista&quot;)
+    public ResponseEntity&lt;Map&lt;String, Object&gt;&gt; configurarWebhook(
+            @Valid @RequestBody WebhookConfigRequest request,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L70">        logger.info(&quot;Requisição de configuração de webhook recebida&quot;);</span>
+        
+        try {
+            // Buscar lojista
+<span class="nc" id="L74">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L75">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Buscar ou criar webhook
+<span class="nc" id="L78">            List&lt;Webhook&gt; webhooks = webhookRepository.findByLojista(lojista);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            Webhook webhook = webhooks.isEmpty() ? new Webhook() : webhooks.get(0);</span>
+
+            // Atualizar configuração
+<span class="nc" id="L82">            webhook.setLojista(lojista);</span>
+<span class="nc" id="L83">            webhook.setUrl(request.getUrl());</span>
+<span class="nc" id="L84">            webhook.setSecret(request.getSecret());</span>
+<span class="nc" id="L85">            webhook.setAtivo(request.isActive());</span>
+            
+            // Definir evento (pega o primeiro da lista ou ALL)
+<span class="nc bnc" id="L88" title="All 4 branches missed.">            if (request.getEvents() != null &amp;&amp; !request.getEvents().isEmpty()) {</span>
+<span class="nc" id="L89">                String firstEvent = request.getEvents().get(0);</span>
+                try {
+<span class="nc" id="L91">                    webhook.setEvento(EventoWebhook.valueOf(firstEvent.toUpperCase()));</span>
+<span class="nc" id="L92">                } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L93">                    webhook.setEvento(EventoWebhook.ALL);</span>
+<span class="nc" id="L94">                }</span>
+<span class="nc" id="L95">            } else {</span>
+<span class="nc" id="L96">                webhook.setEvento(EventoWebhook.ALL);</span>
+            }
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (webhook.getId() == null) {</span>
+<span class="nc" id="L100">                webhook.setCreatedAt(ZonedDateTime.now());</span>
+            }
+<span class="nc" id="L102">            webhook.setUpdatedAt(ZonedDateTime.now());</span>
+
+            // Salvar
+<span class="nc" id="L105">            webhook = webhookRepository.save(webhook);</span>
+
+<span class="nc" id="L107">            logger.info(&quot;Webhook configurado com sucesso para lojista: {}&quot;, lojista.getId());</span>
+
+            // Preparar resposta
+<span class="nc" id="L110">            Map&lt;String, Object&gt; response = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L111">            response.put(&quot;success&quot;, true);</span>
+<span class="nc" id="L112">            response.put(&quot;message&quot;, &quot;Webhook configurado com sucesso&quot;);</span>
+<span class="nc" id="L113">            response.put(&quot;webhook&quot;, Map.of(</span>
+<span class="nc" id="L114">                &quot;id&quot;, webhook.getId(),</span>
+<span class="nc" id="L115">                &quot;url&quot;, webhook.getUrl(),</span>
+<span class="nc" id="L116">                &quot;active&quot;, webhook.isAtivo(),</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                &quot;events&quot;, request.getEvents() != null ? request.getEvents() : List.of(),</span>
+<span class="nc" id="L118">                &quot;createdAt&quot;, webhook.getCreatedAt(),</span>
+<span class="nc" id="L119">                &quot;updatedAt&quot;, webhook.getUpdatedAt()</span>
+            ));
+
+<span class="nc" id="L122">            return ResponseEntity.ok(response);</span>
+                
+<span class="nc" id="L124">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L125">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L126">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L127">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L129">        } catch (Exception e) {</span>
+<span class="nc" id="L130">            logger.error(&quot;Erro ao configurar webhook&quot;, e);</span>
+<span class="nc" id="L131">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L132">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Lista configurações de webhook do lojista
+     */
+    @GetMapping
+    @Operation(summary = &quot;Listar webhooks&quot;, 
+               description = &quot;Retorna as configurações de webhook do lojista&quot;)
+    public ResponseEntity&lt;Map&lt;String, Object&gt;&gt; listarWebhooks(
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L145">        logger.info(&quot;Requisição de listagem de webhooks recebida&quot;);</span>
+        
+        try {
+            // Buscar lojista
+<span class="nc" id="L149">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L150">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Buscar webhooks
+<span class="nc" id="L153">            List&lt;Webhook&gt; webhooks = webhookRepository.findAllByLojista(lojista);</span>
+
+            // Preparar resposta
+<span class="nc" id="L156">            Map&lt;String, Object&gt; response = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L157">            response.put(&quot;success&quot;, true);</span>
+<span class="nc" id="L158">            response.put(&quot;count&quot;, webhooks.size());</span>
+<span class="nc" id="L159">            response.put(&quot;webhooks&quot;, webhooks.stream().map(w -&gt; Map.of(</span>
+<span class="nc" id="L160">                &quot;id&quot;, w.getId(),</span>
+<span class="nc" id="L161">                &quot;url&quot;, w.getUrl(),</span>
+<span class="nc" id="L162">                &quot;active&quot;, w.isAtivo(),</span>
+<span class="nc" id="L163">                &quot;events&quot;, w.getEventos().stream().map(EventoWebhook::getCode).toList(),</span>
+<span class="nc" id="L164">                &quot;createdAt&quot;, w.getCreatedAt(),</span>
+<span class="nc" id="L165">                &quot;updatedAt&quot;, w.getUpdatedAt()</span>
+<span class="nc" id="L166">            )).toList());</span>
+
+<span class="nc" id="L168">            return ResponseEntity.ok(response);</span>
+                
+<span class="nc" id="L170">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L171">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L172">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L173">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L175">        } catch (Exception e) {</span>
+<span class="nc" id="L176">            logger.error(&quot;Erro ao listar webhooks&quot;, e);</span>
+<span class="nc" id="L177">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L178">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Remove configuração de webhook
+     */
+    @DeleteMapping(&quot;/{id}&quot;)
+    @Operation(summary = &quot;Remover webhook&quot;, 
+               description = &quot;Remove a configuração de webhook especificada&quot;)
+    public ResponseEntity&lt;Map&lt;String, Object&gt;&gt; removerWebhook(
+            @PathVariable UUID id,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L192">        logger.info(&quot;Requisição de remoção de webhook recebida: {}&quot;, id);</span>
+        
+        try {
+            // Buscar lojista
+<span class="nc" id="L196">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L197">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Buscar webhook
+<span class="nc" id="L200">            Webhook webhook = webhookRepository.findById(id)</span>
+<span class="nc" id="L201">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Webhook não encontrado&quot;));</span>
+
+            // Verificar se pertence ao lojista
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (!webhook.getLojista().getId().equals(lojista.getId())) {</span>
+<span class="nc" id="L205">                throw new IllegalArgumentException(&quot;Webhook não pertence ao lojista&quot;);</span>
+            }
+
+            // Remover
+<span class="nc" id="L209">            webhookRepository.delete(webhook);</span>
+
+<span class="nc" id="L211">            logger.info(&quot;Webhook removido com sucesso: {}&quot;, id);</span>
+
+<span class="nc" id="L213">            return ResponseEntity.ok(Map.of(</span>
+<span class="nc" id="L214">                &quot;success&quot;, true,</span>
+                &quot;message&quot;, &quot;Webhook removido com sucesso&quot;
+            ));
+                
+<span class="nc" id="L218">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L219">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L220">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L221">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L223">        } catch (Exception e) {</span>
+<span class="nc" id="L224">            logger.error(&quot;Erro ao remover webhook&quot;, e);</span>
+<span class="nc" id="L225">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L226">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Lista eventos de webhook
+     */
+    @GetMapping(&quot;/events&quot;)
+    @Operation(summary = &quot;Listar eventos de webhook&quot;, 
+               description = &quot;Retorna uma lista paginada de eventos de webhook&quot;)
+    public ResponseEntity&lt;Page&lt;WebhookEvent&gt;&gt; listarEventos(
+            @Parameter(description = &quot;Status do evento&quot;)
+            @RequestParam(required = false) String status,
+            
+            @Parameter(description = &quot;Número da página (inicia em 0)&quot;)
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            
+            @Parameter(description = &quot;Tamanho da página&quot;)
+            @RequestParam(defaultValue = &quot;20&quot;) int size,
+            
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L248">        logger.info(&quot;Requisição de listagem de eventos de webhook - Page: {}, Size: {}&quot;, page, size);</span>
+        
+        try {
+            // Buscar lojista
+<span class="nc" id="L252">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L253">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Criar paginação
+<span class="nc" id="L256">            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, &quot;createdAt&quot;));</span>
+
+            // Buscar eventos
+            Page&lt;WebhookEvent&gt; eventos;
+<span class="nc bnc" id="L260" title="All 4 branches missed.">            if (status != null &amp;&amp; !status.trim().isEmpty()) {</span>
+<span class="nc" id="L261">                eventos = webhookEventRepository.findByLojistaAndStatus(lojista, status, pageable);</span>
+            } else {
+<span class="nc" id="L263">                eventos = webhookEventRepository.findByLojista(lojista, pageable);</span>
+            }
+
+<span class="nc" id="L266">            logger.info(&quot;Listagem de eventos concluída - Total: {}, Página: {}/{}&quot;, </span>
+<span class="nc" id="L267">                       eventos.getTotalElements(), </span>
+<span class="nc" id="L268">                       eventos.getNumber() + 1, </span>
+<span class="nc" id="L269">                       eventos.getTotalPages());</span>
+
+<span class="nc" id="L271">            return ResponseEntity.ok(eventos);</span>
+                
+<span class="nc" id="L273">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L274">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L275">            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();</span>
+                
+<span class="nc" id="L277">        } catch (Exception e) {</span>
+<span class="nc" id="L278">            logger.error(&quot;Erro ao listar eventos de webhook&quot;, e);</span>
+<span class="nc" id="L279">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();</span>
+        }
+    }
+
+    /**
+     * Testa envio de webhook
+     */
+    @PostMapping(&quot;/test&quot;)
+    @Operation(summary = &quot;Testar webhook&quot;, 
+               description = &quot;Envia um webhook de teste para verificar a configuração&quot;)
+    public ResponseEntity&lt;Map&lt;String, Object&gt;&gt; testarWebhook(
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L292">        logger.info(&quot;Requisição de teste de webhook recebida&quot;);</span>
+        
+        try {
+            // Buscar lojista
+<span class="nc" id="L296">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L297">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Buscar webhook configurado
+<span class="nc" id="L300">            List&lt;Webhook&gt; webhooks = webhookRepository.findByLojista(lojista);</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            if (webhooks.isEmpty()) {</span>
+<span class="nc" id="L302">                throw new IllegalArgumentException(&quot;Nenhum webhook configurado&quot;);</span>
+            }
+<span class="nc" id="L304">            Webhook webhook = webhooks.get(0);</span>
+
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            if (!webhook.isAtivo()) {</span>
+<span class="nc" id="L307">                throw new IllegalArgumentException(&quot;Webhook está inativo&quot;);</span>
+            }
+
+            // TODO: Implementar envio de webhook de teste
+<span class="nc" id="L311">            logger.info(&quot;Teste de webhook solicitado para lojista: {}&quot;, lojista.getId());</span>
+
+<span class="nc" id="L313">            return ResponseEntity.ok(Map.of(</span>
+<span class="nc" id="L314">                &quot;success&quot;, true,</span>
+                &quot;message&quot;, &quot;Webhook de teste enviado com sucesso&quot;,
+<span class="nc" id="L316">                &quot;url&quot;, webhook.getUrl()</span>
+            ));
+                
+<span class="nc" id="L319">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L320">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L321">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L322">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L324">        } catch (Exception e) {</span>
+<span class="nc" id="L325">            logger.error(&quot;Erro ao testar webhook&quot;, e);</span>
+<span class="nc" id="L326">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L327">                .body(Map.of(&quot;success&quot;, false, &quot;error&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

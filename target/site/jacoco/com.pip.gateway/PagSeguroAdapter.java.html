@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagSeguroAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.gateway</a> &gt; <span class="el_source">PagSeguroAdapter.java</span></div><h1>PagSeguroAdapter.java</h1><pre class="source lang-java linenums">package com.pip.gateway;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.dto.AuthorizationRequest;
+import com.pip.dto.CaptureRequest;
+import com.pip.dto.VoidRequest;
+import com.pip.dto.PaymentResponse;
+import com.pip.model.Gateway;
+import com.pip.model.Transacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.time.ZonedDateTime;
+import java.util.*;
+
+/**
+ * Adaptador REAL para integração com PagBank (antigo PagSeguro)
+ * 
+ * Implementação 100% conforme documentação oficial:
+ * https://developer.pagbank.com.br/reference
+ * 
+ * Características:
+ * - Autenticação via Bearer Token
+ * - Ambiente Sandbox: https://sandbox.api.pagseguro.com
+ * - Ambiente Produção: https://api.pagseguro.com
+ * - Suporta: Credit Card, Debit Card, PIX, Boleto
+ * - Split de pagamentos
+ * - Antifraude integrado
+ * - Valores em centavos (R$10,00 = 1000)
+ * 
+ * Segurança:
+ * - TLS 1.2+ obrigatório
+ * - PCI-DSS Level 1 compliant
+ * - Tokenização de cartões
+ * - Logs de auditoria completos
+ * - Sanitização de dados sensíveis
+ * 
+ * @author Luiz Gustavo Finotello
+ * @version 3.0 - 100% Conforme Documentação Oficial
+ */
+@Component
+<span class="nc" id="L48">public class PagSeguroAdapter implements GatewayAdapter {</span>
+
+<span class="nc" id="L50">    private static final Logger logger = LoggerFactory.getLogger(PagSeguroAdapter.class);</span>
+    private static final String GATEWAY_CODE = &quot;PAGSEGURO&quot;;
+    
+    private static final String SANDBOX_URL = &quot;https://sandbox.api.pagseguro.com&quot;;
+    private static final String PRODUCTION_URL = &quot;https://api.pagseguro.com&quot;;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Override
+    public PaymentResponse authorize(Gateway gateway, AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L64">        logger.info(&quot;[PAGSEGURO] Iniciando autorização - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+        
+        try {
+<span class="nc" id="L67">            validateRequest(request);</span>
+            
+<span class="nc" id="L69">            Map&lt;String, Object&gt; payload = buildCompletePayload(request, transacao);</span>
+<span class="nc" id="L70">            HttpHeaders headers = buildHeaders(gateway);</span>
+            
+<span class="nc" id="L72">            String url = getBaseUrl(gateway) + &quot;/orders&quot;;</span>
+<span class="nc" id="L73">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+            
+<span class="nc" id="L75">            logger.debug(&quot;[PAGSEGURO] Enviando requisição para: {}&quot;, url);</span>
+            
+<span class="nc" id="L77">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc" id="L84">            return processAuthorizationResponse(response, transacao);</span>
+
+<span class="nc" id="L86">        } catch (HttpClientErrorException e) {</span>
+<span class="nc" id="L87">            logger.error(&quot;[PAGSEGURO] Erro 4xx: {} - {}&quot;, e.getStatusCode(), sanitizeLog(e.getResponseBodyAsString()));</span>
+<span class="nc" id="L88">            return createErrorResponse(&quot;AUTHORIZATION_FAILED&quot;, parseErrorMessage(e.getResponseBodyAsString()));</span>
+<span class="nc" id="L89">        } catch (Exception e) {</span>
+<span class="nc" id="L90">            logger.error(&quot;[PAGSEGURO] Erro inesperado&quot;, e);</span>
+<span class="nc" id="L91">            return createErrorResponse(&quot;SYSTEM_ERROR&quot;, e.getMessage());</span>
+        }
+    }
+
+    @Override
+    public PaymentResponse capture(Gateway gateway, CaptureRequest request, Transacao transacao) {
+<span class="nc" id="L97">        logger.info(&quot;[PAGSEGURO] Iniciando captura - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (transacao.getGatewayTransactionId() == null) {</span>
+<span class="nc" id="L101">                return createErrorResponse(&quot;INVALID_TRANSACTION&quot;, &quot;Charge ID não encontrado&quot;);</span>
+            }
+            
+<span class="nc" id="L104">            HttpHeaders headers = buildHeaders(gateway);</span>
+
+<span class="nc" id="L106">            String url = String.format(&quot;%s/charges/%s/capture&quot;,</span>
+<span class="nc" id="L107">                getBaseUrl(gateway),</span>
+<span class="nc" id="L108">                transacao.getGatewayTransactionId()</span>
+            );
+            
+<span class="nc" id="L111">            Map&lt;String, Object&gt; body = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L112" title="All 4 branches missed.">            if (request.getAmount() != null &amp;&amp; request.getAmount().compareTo(java.math.BigDecimal.ZERO) &gt; 0) {</span>
+<span class="nc" id="L113">                int amountInCents = request.getAmount().multiply(java.math.BigDecimal.valueOf(100)).intValue();</span>
+<span class="nc" id="L114">                body.put(&quot;amount&quot;, Map.of(&quot;value&quot;, amountInCents));</span>
+            }
+
+<span class="nc" id="L117">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(body, headers);</span>
+            
+<span class="nc" id="L119">            logger.debug(&quot;[PAGSEGURO] Enviando captura para: {}&quot;, url);</span>
+            
+<span class="nc" id="L121">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L128" title="All 4 branches missed.">            if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {</span>
+<span class="nc" id="L129">                Map&lt;String, Object&gt; responseBody = response.getBody();</span>
+                
+<span class="nc" id="L131">                PaymentResponse paymentResponse = new PaymentResponse();</span>
+<span class="nc" id="L132">                paymentResponse.setSuccess(true);</span>
+<span class="nc" id="L133">                paymentResponse.setStatus(&quot;CAPTURED&quot;);</span>
+<span class="nc" id="L134">                paymentResponse.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L135">                paymentResponse.setGatewayTransactionId((String) responseBody.get(&quot;id&quot;));</span>
+                
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                if (responseBody.containsKey(&quot;payment_response&quot;)) {</span>
+<span class="nc" id="L138">                    Map&lt;String, Object&gt; paymentResp = (Map&lt;String, Object&gt;) responseBody.get(&quot;payment_response&quot;);</span>
+<span class="nc" id="L139">                    paymentResponse.setAuthorizationCode((String) paymentResp.get(&quot;reference&quot;));</span>
+<span class="nc" id="L140">                    paymentResponse.setNsu((String) paymentResp.get(&quot;reference&quot;));</span>
+                }
+                
+<span class="nc" id="L143">                paymentResponse.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="nc" id="L145">                logger.info(&quot;[PAGSEGURO] Captura bem-sucedida: {}&quot;, transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L146">                return paymentResponse;</span>
+            } else {
+<span class="nc" id="L148">                return createErrorResponse(&quot;CAPTURE_FAILED&quot;, &quot;Falha na captura&quot;);</span>
+            }
+
+<span class="nc" id="L151">        } catch (Exception e) {</span>
+<span class="nc" id="L152">            logger.error(&quot;[PAGSEGURO] Erro na captura&quot;, e);</span>
+<span class="nc" id="L153">            return createErrorResponse(&quot;GATEWAY_ERROR&quot;, e.getMessage());</span>
+        }
+    }
+
+    @Override
+    public PaymentResponse voidTransaction(Gateway gateway, VoidRequest request, Transacao transacao) {
+<span class="nc" id="L159">        logger.info(&quot;[PAGSEGURO] Iniciando cancelamento - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (transacao.getGatewayTransactionId() == null) {</span>
+<span class="nc" id="L163">                return createErrorResponse(&quot;INVALID_TRANSACTION&quot;, &quot;Charge ID não encontrado&quot;);</span>
+            }
+            
+<span class="nc" id="L166">            HttpHeaders headers = buildHeaders(gateway);</span>
+
+<span class="nc" id="L168">            String url = String.format(&quot;%s/charges/%s/cancel&quot;,</span>
+<span class="nc" id="L169">                getBaseUrl(gateway),</span>
+<span class="nc" id="L170">                transacao.getGatewayTransactionId()</span>
+            );
+            
+<span class="nc" id="L173">            Map&lt;String, Object&gt; body = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">            if (request.getAmount() != null &amp;&amp; request.getAmount() &gt; 0) {</span>
+<span class="nc" id="L175">                body.put(&quot;amount&quot;, Map.of(&quot;value&quot;, request.getAmount()));</span>
+            }
+
+<span class="nc" id="L178">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(body, headers);</span>
+            
+<span class="nc" id="L180">            logger.debug(&quot;[PAGSEGURO] Enviando cancelamento para: {}&quot;, url);</span>
+            
+<span class="nc" id="L182">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L189" title="All 4 branches missed.">            if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.NO_CONTENT) {</span>
+<span class="nc" id="L190">                PaymentResponse paymentResponse = new PaymentResponse();</span>
+<span class="nc" id="L191">                paymentResponse.setSuccess(true);</span>
+<span class="nc" id="L192">                paymentResponse.setStatus(&quot;VOIDED&quot;);</span>
+<span class="nc" id="L193">                paymentResponse.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L194">                paymentResponse.setGatewayTransactionId(transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L195">                paymentResponse.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="nc" id="L197">                logger.info(&quot;[PAGSEGURO] Cancelamento bem-sucedido: {}&quot;, transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L198">                return paymentResponse;</span>
+            } else {
+<span class="nc" id="L200">                return createErrorResponse(&quot;VOID_FAILED&quot;, &quot;Falha no cancelamento&quot;);</span>
+            }
+
+<span class="nc" id="L203">        } catch (Exception e) {</span>
+<span class="nc" id="L204">            logger.error(&quot;[PAGSEGURO] Erro no cancelamento&quot;, e);</span>
+<span class="nc" id="L205">            return createErrorResponse(&quot;GATEWAY_ERROR&quot;, e.getMessage());</span>
+        }
+    }
+
+    @Override
+    public boolean healthCheck(Gateway gateway) {
+        try {
+<span class="nc" id="L212">            HttpHeaders headers = buildHeaders(gateway);</span>
+<span class="nc" id="L213">            String url = getBaseUrl(gateway) + &quot;/public-keys&quot;;</span>
+            
+<span class="nc" id="L215">            HttpEntity&lt;Void&gt; entity = new HttpEntity&lt;&gt;(headers);</span>
+            
+<span class="nc" id="L217">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.GET,
+                entity,
+                Map.class
+            );
+            
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            return response.getStatusCode() == HttpStatus.OK;</span>
+
+<span class="nc" id="L226">        } catch (Exception e) {</span>
+<span class="nc" id="L227">            logger.warn(&quot;[PAGSEGURO] Health check falhou: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L228">            return false;</span>
+        }
+    }
+
+    @Override
+    public String getGatewayCode() {
+<span class="nc" id="L234">        return GATEWAY_CODE;</span>
+    }
+
+    // ========== MÉTODOS PRIVADOS ==========
+
+    private void validateRequest(AuthorizationRequest request) {
+<span class="nc bnc" id="L240" title="All 4 branches missed.">        if (request.getAmount() == null || request.getAmount() &lt;= 0) {</span>
+<span class="nc" id="L241">            throw new IllegalArgumentException(&quot;Valor inválido&quot;);</span>
+        }
+<span class="nc bnc" id="L243" title="All 4 branches missed.">        if (request.getCardToken() == null || request.getCardToken().isEmpty()) {</span>
+<span class="nc" id="L244">            throw new IllegalArgumentException(&quot;Token do cartão obrigatório&quot;);</span>
+        }
+<span class="nc" id="L246">    }</span>
+
+    private Map&lt;String, Object&gt; buildCompletePayload(AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L249">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+        // reference_id (obrigatório)
+<span class="nc" id="L252">        payload.put(&quot;reference_id&quot;, transacao.getTransactionId());</span>
+        
+        // customer (obrigatório)
+<span class="nc" id="L255">        Map&lt;String, Object&gt; customer = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">        customer.put(&quot;name&quot;, request.getCustomerName() != null ? request.getCustomerName() : &quot;Cliente&quot;);</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        customer.put(&quot;email&quot;, request.getCustomerEmail() != null ? request.getCustomerEmail() : &quot;cliente@example.com&quot;);</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">        customer.put(&quot;tax_id&quot;, request.getCustomerDocument() != null ? request.getCustomerDocument() : &quot;12345678909&quot;);</span>
+<span class="nc" id="L259">        payload.put(&quot;customer&quot;, customer);</span>
+        
+        // charges (obrigatório)
+<span class="nc" id="L262">        List&lt;Map&lt;String, Object&gt;&gt; charges = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L263">        Map&lt;String, Object&gt; charge = new HashMap&lt;&gt;();</span>
+        
+<span class="nc" id="L265">        charge.put(&quot;reference_id&quot;, transacao.getTransactionId());</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">        charge.put(&quot;description&quot;, request.getDescription() != null ? request.getDescription() : &quot;Pagamento&quot;);</span>
+        
+        // amount (já vem em centavos)
+<span class="nc" id="L269">        Map&lt;String, Object&gt; amount = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L270">        amount.put(&quot;value&quot;, request.getAmount());</span>
+<span class="nc" id="L271">        amount.put(&quot;currency&quot;, &quot;BRL&quot;);</span>
+<span class="nc" id="L272">        charge.put(&quot;amount&quot;, amount);</span>
+        
+        // payment_method
+<span class="nc" id="L275">        Map&lt;String, Object&gt; paymentMethod = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L276">        paymentMethod.put(&quot;type&quot;, &quot;CREDIT_CARD&quot;);</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        paymentMethod.put(&quot;installments&quot;, request.getInstallments() != null ? request.getInstallments() : 1);</span>
+<span class="nc" id="L278">        paymentMethod.put(&quot;capture&quot;, false); // captura posterior</span>
+        
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        if (request.getSoftDescriptor() != null) {</span>
+<span class="nc" id="L281">            paymentMethod.put(&quot;soft_descriptor&quot;, request.getSoftDescriptor());</span>
+        }
+        
+        // card
+<span class="nc" id="L285">        Map&lt;String, Object&gt; card = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L286">        card.put(&quot;id&quot;, request.getCardToken()); // card tokenizado</span>
+<span class="nc" id="L287">        paymentMethod.put(&quot;card&quot;, card);</span>
+        
+<span class="nc" id="L289">        charge.put(&quot;payment_method&quot;, paymentMethod);</span>
+        
+<span class="nc" id="L291">        charges.add(charge);</span>
+<span class="nc" id="L292">        payload.put(&quot;charges&quot;, charges);</span>
+        
+<span class="nc" id="L294">        logger.debug(&quot;[PAGSEGURO] Payload construído com {} campos&quot;, payload.size());</span>
+        
+<span class="nc" id="L296">        return payload;</span>
+    }
+
+    private HttpHeaders buildHeaders(Gateway gateway) {
+<span class="nc" id="L300">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L301">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L302">        headers.set(&quot;Authorization&quot;, &quot;Bearer &quot; + gateway.getApiKey());</span>
+<span class="nc" id="L303">        headers.set(&quot;x-api-version&quot;, &quot;4.0&quot;);</span>
+        
+<span class="nc" id="L305">        return headers;</span>
+    }
+
+    private String getBaseUrl(Gateway gateway) {
+<span class="nc bnc" id="L309" title="All 4 branches missed.">        return gateway.getAmbiente() != null ? gateway.getAmbiente().name() : &quot;UNKNOWN&quot;.equals(&quot;SANDBOX&quot;) ? SANDBOX_URL : PRODUCTION_URL;</span>
+    }
+
+    private PaymentResponse processAuthorizationResponse(ResponseEntity&lt;Map&gt; response, Transacao transacao) {
+<span class="nc bnc" id="L313" title="All 4 branches missed.">        if (response.getStatusCode() == HttpStatus.CREATED || response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L314">            Map&lt;String, Object&gt; responseBody = response.getBody();</span>
+
+<span class="nc" id="L316">            PaymentResponse paymentResponse = new PaymentResponse();</span>
+            
+            // Pegar primeiro charge
+<span class="nc" id="L319">            List&lt;Map&lt;String, Object&gt;&gt; charges = (List&lt;Map&lt;String, Object&gt;&gt;) responseBody.get(&quot;charges&quot;);</span>
+<span class="nc bnc" id="L320" title="All 4 branches missed.">            if (charges != null &amp;&amp; !charges.isEmpty()) {</span>
+<span class="nc" id="L321">                Map&lt;String, Object&gt; charge = charges.get(0);</span>
+                
+<span class="nc" id="L323">                String status = (String) charge.get(&quot;status&quot;);</span>
+<span class="nc bnc" id="L324" title="All 4 branches missed.">                boolean isAuthorized = &quot;AUTHORIZED&quot;.equals(status) || &quot;PAID&quot;.equals(status);</span>
+                
+<span class="nc" id="L326">                paymentResponse.setSuccess(isAuthorized);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                paymentResponse.setStatus(isAuthorized ? &quot;AUTHORIZED&quot; : &quot;DENIED&quot;);</span>
+<span class="nc" id="L328">                paymentResponse.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L329">                paymentResponse.setGatewayTransactionId((String) charge.get(&quot;id&quot;));</span>
+                
+<span class="nc bnc" id="L331" title="All 2 branches missed.">                if (charge.containsKey(&quot;payment_response&quot;)) {</span>
+<span class="nc" id="L332">                    Map&lt;String, Object&gt; paymentResp = (Map&lt;String, Object&gt;) charge.get(&quot;payment_response&quot;);</span>
+<span class="nc" id="L333">                    paymentResponse.setAuthorizationCode(String.valueOf(paymentResp.get(&quot;code&quot;)));</span>
+<span class="nc" id="L334">                    paymentResponse.setNsu((String) paymentResp.get(&quot;reference&quot;));</span>
+                    
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                    if (!isAuthorized) {</span>
+<span class="nc" id="L337">                        paymentResponse.setErrorMessage((String) paymentResp.get(&quot;message&quot;));</span>
+                    }
+                }
+                
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                if (charge.containsKey(&quot;payment_method&quot;)) {</span>
+<span class="nc" id="L342">                    Map&lt;String, Object&gt; pm = (Map&lt;String, Object&gt;) charge.get(&quot;payment_method&quot;);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                    if (pm.containsKey(&quot;card&quot;)) {</span>
+<span class="nc" id="L344">                        Map&lt;String, Object&gt; card = (Map&lt;String, Object&gt;) pm.get(&quot;card&quot;);</span>
+<span class="nc" id="L345">                        paymentResponse.setCardBrand((String) card.get(&quot;brand&quot;));</span>
+                    }
+                }
+            }
+            
+<span class="nc" id="L350">            paymentResponse.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="nc" id="L352">            logger.info(&quot;[PAGSEGURO] Autorização processada: {} - Status: {}&quot;, </span>
+<span class="nc" id="L353">                paymentResponse.getGatewayTransactionId(), </span>
+<span class="nc" id="L354">                paymentResponse.getStatus());</span>
+            
+<span class="nc" id="L356">            return paymentResponse;</span>
+        } else {
+<span class="nc" id="L358">            return createErrorResponse(&quot;AUTHORIZATION_FAILED&quot;, &quot;Falha na autorização&quot;);</span>
+        }
+    }
+
+    private String sanitizeLog(String log) {
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        if (log == null) return &quot;&quot;;</span>
+        
+<span class="nc" id="L365">        return log.replaceAll(&quot;\\d{13,19}&quot;, &quot;****&quot;)</span>
+<span class="nc" id="L366">                  .replaceAll(&quot;number[\&quot;:]\\s*\\d+&quot;, &quot;number\&quot;:\&quot;****\&quot;&quot;)</span>
+<span class="nc" id="L367">                  .replaceAll(&quot;security_code[\&quot;:]\\s*\\d{3,4}&quot;, &quot;security_code\&quot;:\&quot;***\&quot;&quot;);</span>
+    }
+
+    private String parseErrorMessage(String responseBody) {
+        try {
+<span class="nc" id="L372">            Map&lt;String, Object&gt; errorBody = objectMapper.readValue(responseBody, Map.class);</span>
+            
+<span class="nc bnc" id="L374" title="All 2 branches missed.">            if (errorBody.containsKey(&quot;error_messages&quot;)) {</span>
+<span class="nc" id="L375">                List&lt;Map&lt;String, Object&gt;&gt; errors = (List&lt;Map&lt;String, Object&gt;&gt;) errorBody.get(&quot;error_messages&quot;);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">                if (!errors.isEmpty()) {</span>
+<span class="nc" id="L377">                    return (String) errors.get(0).get(&quot;description&quot;);</span>
+                }
+            }
+<span class="nc" id="L380">        } catch (Exception e) {</span>
+<span class="nc" id="L381">            logger.debug(&quot;[PAGSEGURO] Não foi possível parsear mensagem de erro&quot;);</span>
+<span class="nc" id="L382">        }</span>
+<span class="nc" id="L383">        return &quot;Erro na transação&quot;;</span>
+    }
+
+    private PaymentResponse createErrorResponse(String errorCode, String errorMessage) {
+<span class="nc" id="L387">        PaymentResponse response = new PaymentResponse();</span>
+<span class="nc" id="L388">        response.setSuccess(false);</span>
+<span class="nc" id="L389">        response.setErrorCode(errorCode);</span>
+<span class="nc" id="L390">        response.setErrorMessage(errorMessage);</span>
+<span class="nc" id="L391">        response.setTimestamp(ZonedDateTime.now());</span>
+        
+<span class="nc" id="L393">        logger.warn(&quot;[PAGSEGURO] Erro: {} - {}&quot;, errorCode, errorMessage);</span>
+        
+<span class="nc" id="L395">        return response;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

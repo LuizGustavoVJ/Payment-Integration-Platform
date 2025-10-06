@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MockGatewayService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">MockGatewayService.java</span></div><h1>MockGatewayService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.dto.GatewayResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Random;
+import java.util.UUID;
+
+/**
+ * Mock Gateway Service - Simulador de Gateway de Pagamento
+ * Implementa diferentes cenários para validação da PoC
+ */
+@Service
+<span class="nc" id="L17">public class MockGatewayService {</span>
+    
+<span class="nc" id="L19">    private static final Logger logger = LoggerFactory.getLogger(MockGatewayService.class);</span>
+<span class="nc" id="L20">    private final Random random = new Random();</span>
+    
+    /**
+     * Processa uma transação simulando comportamento real de gateway
+     */
+    public GatewayResponse processPayment(String cardToken, Double amount, String currency) {
+<span class="nc" id="L26">        logger.info(&quot;Processando pagamento - Token: {}, Valor: {} {}&quot;, cardToken, amount, currency);</span>
+        
+        // Simula latência real de gateway (100-500ms)
+<span class="nc" id="L29">        simulateLatency();</span>
+        
+        // Determina cenário baseado no valor
+<span class="nc" id="L32">        return determineScenario(amount, cardToken);</span>
+    }
+    
+    /**
+     * Simula latência realística de gateway de pagamento
+     */
+    private void simulateLatency() {
+        try {
+<span class="nc" id="L40">            int latency = 100 + random.nextInt(400); // 100-500ms</span>
+<span class="nc" id="L41">            Thread.sleep(latency);</span>
+<span class="nc" id="L42">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L43">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L44">        }</span>
+<span class="nc" id="L45">    }</span>
+    
+    /**
+     * Determina cenário de resposta baseado em regras de negócio
+     */
+    private GatewayResponse determineScenario(Double amount, String cardToken) {
+<span class="nc" id="L51">        GatewayResponse response = new GatewayResponse();</span>
+<span class="nc" id="L52">        response.setTransactionId(UUID.randomUUID().toString());</span>
+<span class="nc" id="L53">        response.setTimestamp(LocalDateTime.now());</span>
+<span class="nc" id="L54">        response.setAmount(amount);</span>
+        
+        // Cenários baseados no valor da transação
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (amount &lt;= 0) {</span>
+<span class="nc" id="L58">            return createErrorResponse(response, &quot;INVALID_AMOUNT&quot;, &quot;Valor inválido&quot;);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        } else if (amount &gt; 10000) {</span>
+<span class="nc" id="L60">            return createDeclinedResponse(response, &quot;LIMIT_EXCEEDED&quot;, &quot;Limite excedido&quot;);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        } else if (cardToken.contains(&quot;error&quot;)) {</span>
+<span class="nc" id="L62">            return createErrorResponse(response, &quot;INVALID_CARD&quot;, &quot;Cartão inválido&quot;);</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        } else if (cardToken.contains(&quot;declined&quot;)) {</span>
+<span class="nc" id="L64">            return createDeclinedResponse(response, &quot;INSUFFICIENT_FUNDS&quot;, &quot;Saldo insuficiente&quot;);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        } else if (random.nextInt(100) &lt; 5) { // 5% de falha aleatória</span>
+<span class="nc" id="L66">            return createErrorResponse(response, &quot;GATEWAY_ERROR&quot;, &quot;Erro interno do gateway&quot;);</span>
+        } else {
+<span class="nc" id="L68">            return createApprovedResponse(response);</span>
+        }
+    }
+    
+    private GatewayResponse createApprovedResponse(GatewayResponse response) {
+<span class="nc" id="L73">        response.setStatus(&quot;APPROVED&quot;);</span>
+<span class="nc" id="L74">        response.setAuthorizationCode(&quot;AUTH&quot; + random.nextInt(999999));</span>
+<span class="nc" id="L75">        response.setMessage(&quot;Transação aprovada com sucesso&quot;);</span>
+<span class="nc" id="L76">        logger.info(&quot;Transação aprovada - ID: {}&quot;, response.getTransactionId());</span>
+<span class="nc" id="L77">        return response;</span>
+    }
+    
+    private GatewayResponse createDeclinedResponse(GatewayResponse response, String code, String message) {
+<span class="nc" id="L81">        response.setStatus(&quot;DECLINED&quot;);</span>
+<span class="nc" id="L82">        response.setErrorCode(code);</span>
+<span class="nc" id="L83">        response.setMessage(message);</span>
+<span class="nc" id="L84">        logger.warn(&quot;Transação negada - ID: {}, Motivo: {}&quot;, response.getTransactionId(), code);</span>
+<span class="nc" id="L85">        return response;</span>
+    }
+    
+    private GatewayResponse createErrorResponse(GatewayResponse response, String code, String message) {
+<span class="nc" id="L89">        response.setStatus(&quot;ERROR&quot;);</span>
+<span class="nc" id="L90">        response.setErrorCode(code);</span>
+<span class="nc" id="L91">        response.setMessage(message);</span>
+<span class="nc" id="L92">        logger.error(&quot;Erro na transação - ID: {}, Erro: {}&quot;, response.getTransactionId(), code);</span>
+<span class="nc" id="L93">        return response;</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

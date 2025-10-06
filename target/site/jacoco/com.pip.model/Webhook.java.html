@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Webhook.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">Webhook.java</span></div><h1>Webhook.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa uma configuração de webhook
+ */
+@Entity
+@Table(name = &quot;webhook&quot;, indexes = {
+    @Index(name = &quot;idx_webhook_lojista&quot;, columnList = &quot;lojista_id&quot;),
+    @Index(name = &quot;idx_webhook_status&quot;, columnList = &quot;status&quot;),
+    @Index(name = &quot;idx_webhook_evento&quot;, columnList = &quot;evento&quot;)
+})
+public class Webhook {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;lojista_id&quot;, nullable = false)
+    private Lojista lojista;
+
+    @Column(name = &quot;nome&quot;, nullable = false, length = 100)
+    @NotBlank(message = &quot;Nome do webhook é obrigatório&quot;)
+    @Size(max = 100, message = &quot;Nome deve ter no máximo 100 caracteres&quot;)
+    private String nome;
+
+    @Column(name = &quot;url&quot;, nullable = false, length = 500)
+    @NotBlank(message = &quot;URL do webhook é obrigatória&quot;)
+    @Size(max = 500, message = &quot;URL deve ter no máximo 500 caracteres&quot;)
+    private String url;
+
+    @Column(name = &quot;evento&quot;, nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    private EventoWebhook evento;
+
+    @Column(name = &quot;status&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private StatusWebhook status;
+
+    @Column(name = &quot;secret&quot;, nullable = false, length = 100)
+    @Size(max = 100, message = &quot;Secret deve ter no máximo 100 caracteres&quot;)
+    private String secret; // Para assinatura HMAC
+
+<span class="nc" id="L52">    @Column(name = &quot;timeout_segundos&quot;, nullable = false)</span>
+    @Min(value = 1, message = &quot;Timeout deve ser no mínimo 1 segundo&quot;)
+    @Max(value = 300, message = &quot;Timeout deve ser no máximo 300 segundos&quot;)
+<span class="nc" id="L55">    private Integer timeoutSegundos = 30;</span>
+
+<span class="nc" id="L57">    @Column(name = &quot;max_tentativas&quot;, nullable = false)</span>
+    @Min(value = 1, message = &quot;Máximo de tentativas deve ser no mínimo 1&quot;)
+    @Max(value = 10, message = &quot;Máximo de tentativas deve ser no máximo 10&quot;)
+<span class="nc" id="L60">    private Integer maxTentativas = 3;</span>
+
+<span class="nc" id="L62">    @Column(name = &quot;intervalo_retry_segundos&quot;, nullable = false)</span>
+    @Min(value = 1, message = &quot;Intervalo de retry deve ser no mínimo 1 segundo&quot;)
+<span class="nc" id="L64">    private Integer intervaloRetrySegundos = 60;</span>
+
+<span class="nc" id="L66">    @Column(name = &quot;total_envios&quot;, nullable = false)</span>
+<span class="nc" id="L67">    private Long totalEnvios = 0L;</span>
+
+<span class="nc" id="L69">    @Column(name = &quot;total_sucessos&quot;, nullable = false)</span>
+<span class="nc" id="L70">    private Long totalSucessos = 0L;</span>
+
+<span class="nc" id="L72">    @Column(name = &quot;total_falhas&quot;, nullable = false)</span>
+<span class="nc" id="L73">    private Long totalFalhas = 0L;</span>
+
+<span class="nc" id="L75">    @Column(name = &quot;taxa_sucesso&quot;, nullable = false)</span>
+<span class="nc" id="L76">    private Double taxaSucesso = 0.0;</span>
+
+    @Column(name = &quot;ultimo_envio_at&quot;)
+    private ZonedDateTime ultimoEnvioAt;
+
+    @Column(name = &quot;ultimo_sucesso_at&quot;)
+    private ZonedDateTime ultimoSucessoAt;
+
+    @Column(name = &quot;ultima_falha_at&quot;)
+    private ZonedDateTime ultimaFalhaAt;
+
+    @Column(name = &quot;ultima_falha_motivo&quot;, length = 500)
+    private String ultimaFalhaMotivo;
+
+    @Column(name = &quot;headers_customizados&quot;, length = 1000)
+    private String headersCustomizados; // JSON string
+
+    @Column(name = &quot;filtros&quot;, length = 500)
+    private String filtros; // Condições para envio (JSON)
+
+<span class="nc" id="L96">    @Column(name = &quot;ativo&quot;, nullable = false)</span>
+<span class="nc" id="L97">    private Boolean ativo = true;</span>
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private ZonedDateTime createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    private ZonedDateTime updatedAt;
+
+    @Column(name = &quot;last_test_at&quot;)
+    private ZonedDateTime lastTestAt;
+
+    @Column(name = &quot;last_test_success&quot;)
+    private Boolean lastTestSuccess;
+
+    // Construtores
+<span class="nc" id="L112">    public Webhook() {</span>
+<span class="nc" id="L113">        this.createdAt = ZonedDateTime.now();</span>
+<span class="nc" id="L114">        this.status = StatusWebhook.ACTIVE;</span>
+<span class="nc" id="L115">        this.ativo = true;</span>
+<span class="nc" id="L116">        this.totalEnvios = 0L;</span>
+<span class="nc" id="L117">        this.totalSucessos = 0L;</span>
+<span class="nc" id="L118">        this.totalFalhas = 0L;</span>
+<span class="nc" id="L119">        this.taxaSucesso = 0.0;</span>
+<span class="nc" id="L120">    }</span>
+
+    public Webhook(Lojista lojista, String nome, String url, EventoWebhook evento) {
+<span class="nc" id="L123">        this();</span>
+<span class="nc" id="L124">        this.lojista = lojista;</span>
+<span class="nc" id="L125">        this.nome = nome;</span>
+<span class="nc" id="L126">        this.url = url;</span>
+<span class="nc" id="L127">        this.evento = evento;</span>
+<span class="nc" id="L128">    }</span>
+
+    // Métodos de negócio
+    public void ativar() {
+<span class="nc" id="L132">        this.status = StatusWebhook.ACTIVE;</span>
+<span class="nc" id="L133">        this.ativo = true;</span>
+<span class="nc" id="L134">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L135">    }</span>
+
+    public void desativar() {
+<span class="nc" id="L138">        this.status = StatusWebhook.INACTIVE;</span>
+<span class="nc" id="L139">        this.ativo = false;</span>
+<span class="nc" id="L140">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L141">    }</span>
+
+    public void pausar() {
+<span class="nc" id="L144">        this.status = StatusWebhook.PAUSED;</span>
+<span class="nc" id="L145">        this.ativo = false;</span>
+<span class="nc" id="L146">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L147">    }</span>
+
+    public void marcarFalha(String motivo) {
+<span class="nc" id="L150">        this.status = StatusWebhook.FAILED;</span>
+<span class="nc" id="L151">        this.ultimaFalhaAt = ZonedDateTime.now();</span>
+<span class="nc" id="L152">        this.ultimaFalhaMotivo = motivo;</span>
+<span class="nc" id="L153">        this.updatedAt = ZonedDateTime.now();</span>
+        
+        // Se muitas falhas consecutivas, pausar automaticamente
+<span class="nc bnc" id="L156" title="All 4 branches missed.">        if (this.totalFalhas &gt; 0 &amp;&amp; this.totalFalhas % 10 == 0) {</span>
+<span class="nc" id="L157">            this.pausar();</span>
+        }
+<span class="nc" id="L159">    }</span>
+
+    public void registrarEnvio(boolean sucesso, String motivoFalha) {
+<span class="nc" id="L162">        this.totalEnvios++;</span>
+<span class="nc" id="L163">        this.ultimoEnvioAt = ZonedDateTime.now();</span>
+        
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (sucesso) {</span>
+<span class="nc" id="L166">            this.totalSucessos++;</span>
+<span class="nc" id="L167">            this.ultimoSucessoAt = ZonedDateTime.now();</span>
+            // Se estava com falha, reativar
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (this.status == StatusWebhook.FAILED) {</span>
+<span class="nc" id="L170">                this.status = StatusWebhook.ACTIVE;</span>
+            }
+        } else {
+<span class="nc" id="L173">            this.totalFalhas++;</span>
+<span class="nc" id="L174">            this.ultimaFalhaAt = ZonedDateTime.now();</span>
+<span class="nc" id="L175">            this.ultimaFalhaMotivo = motivoFalha;</span>
+        }
+        
+        // Atualizar taxa de sucesso
+<span class="nc" id="L179">        this.taxaSucesso = (this.totalSucessos.doubleValue() / this.totalEnvios.doubleValue()) * 100.0;</span>
+<span class="nc" id="L180">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L181">    }</span>
+
+    public void registrarTeste(boolean sucesso) {
+<span class="nc" id="L184">        this.lastTestAt = ZonedDateTime.now();</span>
+<span class="nc" id="L185">        this.lastTestSuccess = sucesso;</span>
+<span class="nc" id="L186">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L187">    }</span>
+
+    public boolean podeEnviar() {
+<span class="nc bnc" id="L190" title="All 6 branches missed.">        return this.ativo &amp;&amp; </span>
+               this.status == StatusWebhook.ACTIVE &amp;&amp; 
+               this.url != null &amp;&amp; 
+<span class="nc bnc" id="L193" title="All 2 branches missed.">               !this.url.trim().isEmpty();</span>
+    }
+
+    public boolean precisaRetry() {
+<span class="nc bnc" id="L197" title="All 4 branches missed.">        return this.status == StatusWebhook.FAILED &amp;&amp; </span>
+               this.ultimaFalhaAt != null &amp;&amp;
+<span class="nc bnc" id="L199" title="All 2 branches missed.">               ZonedDateTime.now().isAfter(this.ultimaFalhaAt.plusSeconds(this.intervaloRetrySegundos));</span>
+    }
+
+    public String gerarAssinatura(String payload) {
+        try {
+<span class="nc" id="L204">            javax.crypto.Mac mac = javax.crypto.Mac.getInstance(&quot;HmacSHA256&quot;);</span>
+<span class="nc" id="L205">            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(</span>
+<span class="nc" id="L206">                this.secret.getBytes(), &quot;HmacSHA256&quot;);</span>
+<span class="nc" id="L207">            mac.init(secretKeySpec);</span>
+<span class="nc" id="L208">            byte[] hash = mac.doFinal(payload.getBytes());</span>
+<span class="nc" id="L209">            return &quot;sha256=&quot; + bytesToHex(hash);</span>
+<span class="nc" id="L210">        } catch (Exception e) {</span>
+<span class="nc" id="L211">            throw new RuntimeException(&quot;Erro ao gerar assinatura HMAC&quot;, e);</span>
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+<span class="nc" id="L216">        StringBuilder result = new StringBuilder();</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        for (byte b : bytes) {</span>
+<span class="nc" id="L218">            result.append(String.format(&quot;%02x&quot;, b));</span>
+        }
+<span class="nc" id="L220">        return result.toString();</span>
+    }
+
+    public boolean isHealthy() {
+        // Considera saudável se taxa de sucesso &gt; 80% nos últimos envios
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        return this.taxaSucesso &gt;= 80.0;</span>
+    }
+
+    public long getMinutosDesdeUltimaFalha() {
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        if (this.ultimaFalhaAt == null) {</span>
+<span class="nc" id="L230">            return Long.MAX_VALUE;</span>
+        }
+<span class="nc" id="L232">        return this.ultimaFalhaAt.until(ZonedDateTime.now(), java.time.temporal.ChronoUnit.MINUTES);</span>
+    }
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="nc" id="L237">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="nc" id="L241">        this.id = id;</span>
+<span class="nc" id="L242">    }</span>
+
+    public Lojista getLojista() {
+<span class="nc" id="L245">        return lojista;</span>
+    }
+
+    public void setLojista(Lojista lojista) {
+<span class="nc" id="L249">        this.lojista = lojista;</span>
+<span class="nc" id="L250">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L251">    }</span>
+
+    public String getNome() {
+<span class="nc" id="L254">        return nome;</span>
+    }
+
+    public void setNome(String nome) {
+<span class="nc" id="L258">        this.nome = nome;</span>
+<span class="nc" id="L259">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L260">    }</span>
+
+    public String getUrl() {
+<span class="nc" id="L263">        return url;</span>
+    }
+
+    public void setUrl(String url) {
+<span class="nc" id="L267">        this.url = url;</span>
+<span class="nc" id="L268">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L269">    }</span>
+
+    public EventoWebhook getEvento() {
+<span class="nc" id="L272">        return evento;</span>
+    }
+
+    public void setEvento(EventoWebhook evento) {
+<span class="nc" id="L276">        this.evento = evento;</span>
+<span class="nc" id="L277">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L278">    }</span>
+
+    public StatusWebhook getStatus() {
+<span class="nc" id="L281">        return status;</span>
+    }
+
+    public void setStatus(StatusWebhook status) {
+<span class="nc" id="L285">        this.status = status;</span>
+<span class="nc" id="L286">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L287">    }</span>
+
+    public String getSecret() {
+<span class="nc" id="L290">        return secret;</span>
+    }
+
+    public void setSecret(String secret) {
+<span class="nc" id="L294">        this.secret = secret;</span>
+<span class="nc" id="L295">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L296">    }</span>
+
+    public Integer getTimeoutSegundos() {
+<span class="nc" id="L299">        return timeoutSegundos;</span>
+    }
+
+    public void setTimeoutSegundos(Integer timeoutSegundos) {
+<span class="nc" id="L303">        this.timeoutSegundos = timeoutSegundos;</span>
+<span class="nc" id="L304">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L305">    }</span>
+
+    public Integer getMaxTentativas() {
+<span class="nc" id="L308">        return maxTentativas;</span>
+    }
+
+    public void setMaxTentativas(Integer maxTentativas) {
+<span class="nc" id="L312">        this.maxTentativas = maxTentativas;</span>
+<span class="nc" id="L313">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L314">    }</span>
+
+    public Integer getIntervaloRetrySegundos() {
+<span class="nc" id="L317">        return intervaloRetrySegundos;</span>
+    }
+
+    public void setIntervaloRetrySegundos(Integer intervaloRetrySegundos) {
+<span class="nc" id="L321">        this.intervaloRetrySegundos = intervaloRetrySegundos;</span>
+<span class="nc" id="L322">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L323">    }</span>
+
+    public Long getTotalEnvios() {
+<span class="nc" id="L326">        return totalEnvios;</span>
+    }
+
+    public void setTotalEnvios(Long totalEnvios) {
+<span class="nc" id="L330">        this.totalEnvios = totalEnvios;</span>
+<span class="nc" id="L331">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L332">    }</span>
+
+    public Long getTotalSucessos() {
+<span class="nc" id="L335">        return totalSucessos;</span>
+    }
+
+    public void setTotalSucessos(Long totalSucessos) {
+<span class="nc" id="L339">        this.totalSucessos = totalSucessos;</span>
+<span class="nc" id="L340">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L341">    }</span>
+
+    public Long getTotalFalhas() {
+<span class="nc" id="L344">        return totalFalhas;</span>
+    }
+
+    public void setTotalFalhas(Long totalFalhas) {
+<span class="nc" id="L348">        this.totalFalhas = totalFalhas;</span>
+<span class="nc" id="L349">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L350">    }</span>
+
+    public Double getTaxaSucesso() {
+<span class="nc" id="L353">        return taxaSucesso;</span>
+    }
+
+    public void setTaxaSucesso(Double taxaSucesso) {
+<span class="nc" id="L357">        this.taxaSucesso = taxaSucesso;</span>
+<span class="nc" id="L358">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L359">    }</span>
+
+    public ZonedDateTime getUltimoEnvioAt() {
+<span class="nc" id="L362">        return ultimoEnvioAt;</span>
+    }
+
+    public void setUltimoEnvioAt(ZonedDateTime ultimoEnvioAt) {
+<span class="nc" id="L366">        this.ultimoEnvioAt = ultimoEnvioAt;</span>
+<span class="nc" id="L367">    }</span>
+
+    public ZonedDateTime getUltimoSucessoAt() {
+<span class="nc" id="L370">        return ultimoSucessoAt;</span>
+    }
+
+    public void setUltimoSucessoAt(ZonedDateTime ultimoSucessoAt) {
+<span class="nc" id="L374">        this.ultimoSucessoAt = ultimoSucessoAt;</span>
+<span class="nc" id="L375">    }</span>
+
+    public ZonedDateTime getUltimaFalhaAt() {
+<span class="nc" id="L378">        return ultimaFalhaAt;</span>
+    }
+
+    public void setUltimaFalhaAt(ZonedDateTime ultimaFalhaAt) {
+<span class="nc" id="L382">        this.ultimaFalhaAt = ultimaFalhaAt;</span>
+<span class="nc" id="L383">    }</span>
+
+    public String getUltimaFalhaMotivo() {
+<span class="nc" id="L386">        return ultimaFalhaMotivo;</span>
+    }
+
+    public void setUltimaFalhaMotivo(String ultimaFalhaMotivo) {
+<span class="nc" id="L390">        this.ultimaFalhaMotivo = ultimaFalhaMotivo;</span>
+<span class="nc" id="L391">    }</span>
+
+    public String getHeadersCustomizados() {
+<span class="nc" id="L394">        return headersCustomizados;</span>
+    }
+
+    public void setHeadersCustomizados(String headersCustomizados) {
+<span class="nc" id="L398">        this.headersCustomizados = headersCustomizados;</span>
+<span class="nc" id="L399">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L400">    }</span>
+
+    public String getFiltros() {
+<span class="nc" id="L403">        return filtros;</span>
+    }
+
+    public void setFiltros(String filtros) {
+<span class="nc" id="L407">        this.filtros = filtros;</span>
+<span class="nc" id="L408">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L409">    }</span>
+
+    public Boolean getAtivo() {
+<span class="nc" id="L412">        return ativo;</span>
+    }
+
+    public void setAtivo(Boolean ativo) {
+<span class="nc" id="L416">        this.ativo = ativo;</span>
+<span class="nc" id="L417">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L418">    }</span>
+
+    public ZonedDateTime getCreatedAt() {
+<span class="nc" id="L421">        return createdAt;</span>
+    }
+
+    public void setCreatedAt(ZonedDateTime createdAt) {
+<span class="nc" id="L425">        this.createdAt = createdAt;</span>
+<span class="nc" id="L426">    }</span>
+
+    public ZonedDateTime getUpdatedAt() {
+<span class="nc" id="L429">        return updatedAt;</span>
+    }
+
+    public void setUpdatedAt(ZonedDateTime updatedAt) {
+<span class="nc" id="L433">        this.updatedAt = updatedAt;</span>
+<span class="nc" id="L434">    }</span>
+
+    public ZonedDateTime getLastTestAt() {
+<span class="nc" id="L437">        return lastTestAt;</span>
+    }
+
+    public void setLastTestAt(ZonedDateTime lastTestAt) {
+<span class="nc" id="L441">        this.lastTestAt = lastTestAt;</span>
+<span class="nc" id="L442">    }</span>
+
+    public Boolean getLastTestSuccess() {
+<span class="nc" id="L445">        return lastTestSuccess;</span>
+    }
+
+    public void setLastTestSuccess(Boolean lastTestSuccess) {
+<span class="nc" id="L449">        this.lastTestSuccess = lastTestSuccess;</span>
+<span class="nc" id="L450">    }</span>
+
+    // Método auxiliar para compatibilidade
+    public boolean isAtivo() {
+<span class="nc bnc" id="L454" title="All 4 branches missed.">        return this.ativo != null &amp;&amp; this.ativo;</span>
+    }
+
+    // Método para retornar eventos como lista (para compatibilidade)
+    public java.util.List&lt;EventoWebhook&gt; getEventos() {
+<span class="nc" id="L459">        return java.util.Arrays.asList(this.evento);</span>
+    }
+}
+
+/**
+ * Enum para eventos de webhook
+ */
+
+/**
+ * Enum para status do webhook
+ */
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

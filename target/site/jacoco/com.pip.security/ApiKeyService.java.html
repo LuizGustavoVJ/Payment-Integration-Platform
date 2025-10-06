@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKeyService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.security</a> &gt; <span class="el_source">ApiKeyService.java</span></div><h1>ApiKeyService.java</h1><pre class="source lang-java linenums">package com.pip.security;
+
+import com.pip.audit.SecurityAuditLogger;
+import com.pip.dto.ApiKeyInfo;
+import com.pip.dto.ApiKeyValidationResult;
+import com.pip.exception.SecurityException;
+import com.pip.repository.ApiKeyRepository;
+import com.pip.model.ApiKey;
+import com.pip.model.StatusApiKey;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.Base64;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Serviço de autenticação por API Keys com rotação automática
+ * Implementa controles de segurança PCI DSS para autenticação
+ */
+@Service
+<span class="nc" id="L30">public class ApiKeyService {</span>
+    
+<span class="nc" id="L32">    private static final Logger logger = LoggerFactory.getLogger(ApiKeyService.class);</span>
+    private static final String LIVE_PREFIX = &quot;pip_live_&quot;;
+    private static final String TEST_PREFIX = &quot;pip_test_&quot;;
+    private static final int KEY_LENGTH = 64;
+    private static final int MAX_REQUESTS_PER_MINUTE = 100;
+    private static final int ROTATION_DAYS = 90;
+    
+    @Autowired
+    private ApiKeyRepository apiKeyRepository;
+    
+    @Autowired
+    private SecurityAuditLogger auditLogger;
+    
+<span class="nc" id="L45">    private final SecureRandom secureRandom = new SecureRandom();</span>
+<span class="nc" id="L46">    private final ConcurrentHashMap&lt;String, AtomicInteger&gt; rateLimitMap = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="nc" id="L47">    private final ConcurrentHashMap&lt;String, Instant&gt; rateLimitResetMap = new ConcurrentHashMap&lt;&gt;();</span>
+    
+    /**
+     * Valida API Key e retorna informações do merchant
+     * @param apiKey Chave de API fornecida
+     * @return Informações de validação e merchant
+     */
+    public ApiKeyValidationResult validateApiKey(String apiKey) {
+<span class="nc bnc" id="L55" title="All 4 branches missed.">        if (apiKey == null || apiKey.trim().isEmpty()) {</span>
+<span class="nc" id="L56">            auditLogger.logInvalidApiKeyAttempt(null, &quot;Empty API key&quot;);</span>
+<span class="nc" id="L57">            return ApiKeyValidationResult.invalid(&quot;API key is required&quot;);</span>
+        }
+        
+        try {
+            // Calcular hash da API key
+<span class="nc" id="L62">            String hashedKey = hashApiKey(apiKey);</span>
+            
+            // Buscar no banco de dados
+<span class="nc" id="L65">            ApiKey storedKey = apiKeyRepository.findByKeyHash(hashedKey).orElse(null);</span>
+            
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (storedKey == null) {</span>
+<span class="nc" id="L68">                auditLogger.logInvalidApiKeyAttempt(apiKey, &quot;API key not found&quot;);</span>
+<span class="nc" id="L69">                return ApiKeyValidationResult.invalid(&quot;Invalid API key&quot;);</span>
+            }
+            
+            // Verificar se a chave está ativa
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (storedKey.getStatus() != StatusApiKey.ACTIVE) {</span>
+<span class="nc" id="L74">                auditLogger.logInvalidApiKeyAttempt(apiKey, &quot;API key is inactive&quot;);</span>
+<span class="nc" id="L75">                return ApiKeyValidationResult.invalid(&quot;API key is inactive&quot;);</span>
+            }
+            
+            // Verificar expiração
+<span class="nc bnc" id="L79" title="All 4 branches missed.">            if (storedKey.getExpiresAt() != null &amp;&amp; toInstant(storedKey.getExpiresAt()).isBefore(Instant.now())) {</span>
+<span class="nc" id="L80">                auditLogger.logInvalidApiKeyAttempt(apiKey, &quot;API key expired&quot;);</span>
+<span class="nc" id="L81">                return ApiKeyValidationResult.invalid(&quot;API key expired&quot;);</span>
+            }
+            
+            // Verificar rate limiting
+<span class="nc" id="L85">            String merchantId = storedKey.getLojista().getId().toString();</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            if (!checkRateLimit(merchantId)) {</span>
+<span class="nc" id="L87">                auditLogger.logRateLimitExceeded(apiKey, merchantId);</span>
+<span class="nc" id="L88">                return ApiKeyValidationResult.rateLimited(&quot;Rate limit exceeded&quot;);</span>
+            }
+            
+            // Verificar se precisa de rotação
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (needsRotation(storedKey)) {</span>
+<span class="nc" id="L93">                auditLogger.logApiKeyRotationNeeded(merchantId);</span>
+                // Notificar merchant sobre necessidade de rotação
+<span class="nc" id="L95">                notifyRotationNeeded(merchantId);</span>
+            }
+            
+            // Atualizar último uso
+<span class="nc" id="L99">            storedKey.setLastUsedAt(toZonedDateTime(Instant.now()));</span>
+<span class="nc" id="L100">            apiKeyRepository.save(storedKey);</span>
+            
+            // Log de uso bem-sucedido
+<span class="nc" id="L103">            auditLogger.logApiKeyUsage(merchantId, apiKey);</span>
+            
+            // Retornar informações da chave
+<span class="nc" id="L106">            ApiKeyInfo keyInfo = new ApiKeyInfo();</span>
+<span class="nc" id="L107">            keyInfo.setLojistaId(merchantId);</span>
+<span class="nc" id="L108">            keyInfo.setLojistaNome(storedKey.getLojista().getNomeFantasia());</span>
+<span class="nc" id="L109">            keyInfo.setKeyId(storedKey.getId().toString());</span>
+<span class="nc" id="L110">            keyInfo.setEnvironment(storedKey.getAmbiente().getCode());</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            keyInfo.setActive(storedKey.getStatus() == StatusApiKey.ACTIVE);</span>
+<span class="nc" id="L112">            keyInfo.setExpiresAt(storedKey.getExpiresAt());</span>
+            
+<span class="nc" id="L114">            return ApiKeyValidationResult.valid(keyInfo);</span>
+            
+<span class="nc" id="L116">        } catch (Exception e) {</span>
+<span class="nc" id="L117">            auditLogger.logApiKeyValidationError(apiKey, e);</span>
+<span class="nc" id="L118">            return ApiKeyValidationResult.error(&quot;Validation error occurred&quot;);</span>
+        }
+    }
+    
+    /**
+     * Gera nova API Key para um merchant
+     * @param merchantId ID do merchant
+     * @param environment Ambiente (LIVE ou TEST)
+     * @return Nova API Key gerada
+     */
+    public String generateApiKey(String merchantId, String environment) {
+        try {
+            // Gerar chave aleatória
+<span class="nc" id="L131">            String apiKey = generateSecureKey(environment);</span>
+            
+            // Calcular hash para armazenamento
+<span class="nc" id="L134">            String hashedKey = hashApiKey(apiKey);</span>
+            
+            // Criar registro no banco
+<span class="nc" id="L137">            ApiKey keyRecord = new ApiKey();</span>
+<span class="nc" id="L138">            keyRecord.setKeyHash(hashedKey);</span>
+<span class="nc" id="L139">            keyRecord.setEscopo(&quot;PAYMENT_PROCESSING,TRANSACTION_QUERY&quot;);</span>
+<span class="nc" id="L140">            keyRecord.setExpiresAt(toZonedDateTime(Instant.now().plus(ROTATION_DAYS, ChronoUnit.DAYS)));</span>
+            
+<span class="nc" id="L142">            apiKeyRepository.save(keyRecord);</span>
+            
+            // Log de criação
+<span class="nc" id="L145">            auditLogger.logApiKeyGeneration(merchantId, environment);</span>
+            
+<span class="nc" id="L147">            return apiKey;</span>
+            
+<span class="nc" id="L149">        } catch (Exception e) {</span>
+<span class="nc" id="L150">            auditLogger.logApiKeyGenerationError(merchantId, environment, e);</span>
+<span class="nc" id="L151">            throw new SecurityException(&quot;Failed to generate API key&quot;, e);</span>
+        }
+    }
+    
+    /**
+     * Rotaciona API Key existente
+     * @param merchantId ID do merchant
+     * @param currentApiKey Chave atual
+     * @return Nova API Key
+     */
+    public String rotateApiKey(String merchantId, String currentApiKey) {
+        try {
+            // Validar chave atual
+<span class="nc" id="L164">            ApiKeyValidationResult validation = validateApiKey(currentApiKey);</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (!validation.isValid()) {</span>
+<span class="nc" id="L166">                throw new SecurityException(&quot;Cannot rotate invalid API key&quot;);</span>
+            }
+            
+            // Desativar chave atual
+<span class="nc" id="L170">            String hashedKey = hashApiKey(currentApiKey);</span>
+<span class="nc" id="L171">            ApiKey currentKey = apiKeyRepository.findByKeyHash(hashedKey)</span>
+<span class="nc" id="L172">                .orElseThrow(() -&gt; new SecurityException(&quot;API key not found&quot;));</span>
+<span class="nc" id="L173">            currentKey.setStatus(StatusApiKey.REVOKED);</span>
+<span class="nc" id="L174">            currentKey.setRotatedAt(toZonedDateTime(Instant.now()));</span>
+<span class="nc" id="L175">            apiKeyRepository.save(currentKey);</span>
+            
+            // Gerar nova chave
+<span class="nc" id="L178">            String newApiKey = generateApiKey(merchantId, currentKey.getAmbiente().getCode());</span>
+            
+            // Log de rotação
+<span class="nc" id="L181">            auditLogger.logApiKeyRotation(merchantId, currentApiKey);</span>
+            
+<span class="nc" id="L183">            return newApiKey;</span>
+            
+<span class="nc" id="L185">        } catch (Exception e) {</span>
+<span class="nc" id="L186">            auditLogger.logApiKeyRotationError(merchantId, e);</span>
+<span class="nc" id="L187">            throw new SecurityException(&quot;Failed to rotate API key&quot;, e);</span>
+        }
+    }
+    
+    /**
+     * Revoga API Key
+     * @param merchantId ID do merchant
+     * @param apiKey Chave a ser revogada
+     */
+    public void revokeApiKey(String merchantId, String apiKey) {
+        try {
+<span class="nc" id="L198">            String hashedKey = hashApiKey(apiKey);</span>
+<span class="nc" id="L199">            ApiKey keyRecord = apiKeyRepository.findByKeyHash(hashedKey).orElse(null);</span>
+            
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (keyRecord != null) {</span>
+<span class="nc" id="L202">                keyRecord.setStatus(StatusApiKey.REVOKED);</span>
+<span class="nc" id="L203">                keyRecord.setRotatedAt(toZonedDateTime(Instant.now()));</span>
+<span class="nc" id="L204">                apiKeyRepository.save(keyRecord);</span>
+                
+<span class="nc" id="L206">                auditLogger.logApiKeyRevocation(keyRecord.getLojista().getId().toString(), apiKey);</span>
+            }
+            
+<span class="nc" id="L209">        } catch (Exception e) {</span>
+<span class="nc" id="L210">            auditLogger.logApiKeyRevocationError(merchantId, e);</span>
+<span class="nc" id="L211">            throw new SecurityException(&quot;Failed to revoke API key&quot;, e);</span>
+<span class="nc" id="L212">        }</span>
+<span class="nc" id="L213">    }</span>
+    
+    private String generateSecureKey(String environment) {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        String prefix = &quot;LIVE&quot;.equals(environment) ? LIVE_PREFIX : TEST_PREFIX;</span>
+        
+        // Gerar bytes aleatórios
+<span class="nc" id="L219">        byte[] randomBytes = new byte[KEY_LENGTH];</span>
+<span class="nc" id="L220">        secureRandom.nextBytes(randomBytes);</span>
+        
+        // Codificar em Base64 URL-safe
+<span class="nc" id="L223">        String randomPart = Base64.getUrlEncoder()</span>
+<span class="nc" id="L224">            .withoutPadding()</span>
+<span class="nc" id="L225">            .encodeToString(randomBytes);</span>
+        
+<span class="nc" id="L227">        return prefix + randomPart;</span>
+    }
+    
+    private String hashApiKey(String apiKey) {
+        try {
+<span class="nc" id="L232">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="nc" id="L233">            byte[] hash = digest.digest(apiKey.getBytes(&quot;UTF-8&quot;));</span>
+            
+<span class="nc" id="L235">            return Base64.getEncoder().encodeToString(hash);</span>
+            
+<span class="nc" id="L237">        } catch (Exception e) {</span>
+<span class="nc" id="L238">            throw new SecurityException(&quot;Failed to hash API key&quot;, e);</span>
+        }
+    }
+    
+    private boolean checkRateLimit(String merchantId) {
+<span class="nc" id="L243">        Instant now = Instant.now();</span>
+<span class="nc" id="L244">        Instant resetTime = rateLimitResetMap.get(merchantId);</span>
+        
+        // Reset contador se passou 1 minuto
+<span class="nc bnc" id="L247" title="All 4 branches missed.">        if (resetTime == null || now.isAfter(resetTime)) {</span>
+<span class="nc" id="L248">            rateLimitMap.put(merchantId, new AtomicInteger(0));</span>
+<span class="nc" id="L249">            rateLimitResetMap.put(merchantId, now.plus(1, ChronoUnit.MINUTES));</span>
+        }
+        
+        // Verificar se está dentro do limite
+<span class="nc" id="L253">        AtomicInteger counter = rateLimitMap.get(merchantId);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">        if (counter == null) {</span>
+<span class="nc" id="L255">            counter = new AtomicInteger(0);</span>
+<span class="nc" id="L256">            rateLimitMap.put(merchantId, counter);</span>
+        }
+        
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        return counter.incrementAndGet() &lt;= MAX_REQUESTS_PER_MINUTE;</span>
+    }
+    
+    private boolean needsRotation(ApiKey apiKey) {
+<span class="nc" id="L263">        ZonedDateTime rotationThreshold = ZonedDateTime.now().minus(ROTATION_DAYS - 7, ChronoUnit.DAYS);</span>
+<span class="nc bnc" id="L264" title="All 4 branches missed.">        return apiKey.getCreatedAt() != null &amp;&amp; apiKey.getCreatedAt().isBefore(rotationThreshold);</span>
+    }
+    
+    private void notifyRotationNeeded(String merchantId) {
+        // Implementar notificação por email/webhook
+<span class="nc" id="L269">        logger.warn(&quot;API key rotation needed for merchant: {}&quot;, merchantId);</span>
+        
+        // Em produção, enviar notificação real
+        // notificationService.sendRotationNotification(merchantId);
+<span class="nc" id="L273">    }</span>
+    
+    private ZonedDateTime toZonedDateTime(Instant instant) {
+<span class="nc" id="L276">        return instant.atZone(ZoneId.systemDefault());</span>
+    }
+    
+    private Instant toInstant(ZonedDateTime zonedDateTime) {
+<span class="nc" id="L280">        return zonedDateTime.toInstant();</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -50,6 +50,7 @@ class GatewayRoutingServiceTest {
 
         // Criar gateways de teste
         gateway1 = new Gateway();
+        gateway1.setId(java.util.UUID.randomUUID());
         gateway1.setCodigo("GATEWAY1");
         gateway1.setNome("Gateway 1");
         gateway1.setTipo(com.pip.model.TipoGateway.ACQUIRER);
@@ -62,8 +63,10 @@ class GatewayRoutingServiceTest {
         gateway1.setVolumeProcessadoHoje(0L);
         gateway1.setApiKey("test-api-key-1");
         gateway1.ativar();
+        gateway1.atualizarHealthCheck(com.pip.model.HealthStatus.UP);
 
         gateway2 = new Gateway();
+        gateway2.setId(java.util.UUID.randomUUID());
         gateway2.setCodigo("GATEWAY2");
         gateway2.setNome("Gateway 2");
         gateway2.setTipo(com.pip.model.TipoGateway.SUBACQUIRER);
@@ -76,6 +79,7 @@ class GatewayRoutingServiceTest {
         gateway2.setVolumeProcessadoHoje(0L);
         gateway2.setApiKey("test-api-key-2");
         gateway2.ativar();
+        gateway2.atualizarHealthCheck(com.pip.model.HealthStatus.UP);
     }
 
     @Test

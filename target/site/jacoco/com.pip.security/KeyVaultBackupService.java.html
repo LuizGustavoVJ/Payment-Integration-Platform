@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeyVaultBackupService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.security</a> &gt; <span class="el_source">KeyVaultBackupService.java</span></div><h1>KeyVaultBackupService.java</h1><pre class="source lang-java linenums">package com.pip.security;
+
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.security.keyvault.secrets.models.KeyVaultSecret;
+import com.azure.security.keyvault.secrets.models.SecretProperties;
+import com.pip.audit.SecurityAuditLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Serviço de Backup e Recovery do Azure Key Vault
+ * 
+ * Implementa backup automático e recovery de secrets
+ * conforme requisitos de continuidade de negócio
+ * 
+ * Funcionalidades:
+ * - Backup automático diário
+ * - Backup criptografado
+ * - Recovery point-in-time
+ * - Validação de integridade
+ * - Retenção de 30 dias
+ * 
+ * IMPORTANTE: Em produção, usar Azure Backup nativo
+ * Este serviço é complementar para disaster recovery
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L44">public class KeyVaultBackupService {</span>
+
+<span class="nc" id="L46">    private static final Logger logger = LoggerFactory.getLogger(KeyVaultBackupService.class);</span>
+    private static final int RETENTION_DAYS = 30;
+
+    @Autowired
+    private SecretClient secretClient;
+
+    @Autowired
+    private SecurityAuditLogger auditLogger;
+
+    @Value(&quot;${keyvault.backup.path:/var/pip/backups}&quot;)
+    private String backupPath;
+
+    /**
+     * Executa backup automático
+     * Agendado para rodar diariamente às 2h da manhã
+     */
+    @Scheduled(cron = &quot;0 0 2 * * *&quot;)
+    public void performBackup() {
+<span class="nc" id="L64">        logger.info(&quot;[BACKUP] Iniciando backup do Key Vault&quot;);</span>
+
+        try {
+            // Criar diretório de backup se não existir
+<span class="nc" id="L68">            Files.createDirectories(Paths.get(backupPath));</span>
+
+            // Gerar nome do arquivo de backup
+<span class="nc" id="L71">            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern(&quot;yyyyMMdd_HHmmss&quot;));</span>
+<span class="nc" id="L72">            String backupFile = backupPath + &quot;/keyvault_backup_&quot; + timestamp + &quot;.encrypted&quot;;</span>
+
+            // Coletar todos os secrets
+<span class="nc" id="L75">            Map&lt;String, String&gt; secrets = collectAllSecrets();</span>
+
+            // Salvar backup criptografado
+<span class="nc" id="L78">            saveEncryptedBackup(backupFile, secrets);</span>
+
+<span class="nc" id="L80">            logger.info(&quot;[BACKUP] Backup concluído - Arquivo: {} - Secrets: {}&quot;, </span>
+<span class="nc" id="L81">                backupFile, secrets.size());</span>
+
+<span class="nc" id="L83">            auditLogger.logBackupCompleted(backupFile, secrets.size());</span>
+
+            // Limpar backups antigos
+<span class="nc" id="L86">            cleanOldBackups();</span>
+
+<span class="nc" id="L88">        } catch (Exception e) {</span>
+<span class="nc" id="L89">            logger.error(&quot;[BACKUP] Erro ao realizar backup&quot;, e);</span>
+<span class="nc" id="L90">            auditLogger.logBackupFailed(e);</span>
+<span class="nc" id="L91">        }</span>
+<span class="nc" id="L92">    }</span>
+
+    /**
+     * Coleta todos os secrets do Key Vault
+     */
+    private Map&lt;String, String&gt; collectAllSecrets() {
+<span class="nc" id="L98">        Map&lt;String, String&gt; secrets = new HashMap&lt;&gt;();</span>
+
+        try {
+<span class="nc" id="L101">            Iterable&lt;SecretProperties&gt; secretProperties = secretClient.listPropertiesOfSecrets();</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            for (SecretProperties props : secretProperties) {</span>
+                try {
+<span class="nc" id="L105">                    KeyVaultSecret secret = secretClient.getSecret(props.getName());</span>
+<span class="nc" id="L106">                    secrets.put(props.getName(), secret.getValue());</span>
+<span class="nc" id="L107">                } catch (Exception e) {</span>
+<span class="nc" id="L108">                    logger.warn(&quot;[BACKUP] Erro ao coletar secret: {}&quot;, props.getName(), e);</span>
+<span class="nc" id="L109">                }</span>
+<span class="nc" id="L110">            }</span>
+
+<span class="nc" id="L112">        } catch (Exception e) {</span>
+<span class="nc" id="L113">            logger.error(&quot;[BACKUP] Erro ao listar secrets&quot;, e);</span>
+<span class="nc" id="L114">        }</span>
+
+<span class="nc" id="L116">        return secrets;</span>
+    }
+
+    /**
+     * Salva backup criptografado
+     * Em produção, usar criptografia AES-256-GCM
+     */
+    private void saveEncryptedBackup(String filename, Map&lt;String, String&gt; secrets) throws Exception {
+        // Converter para JSON
+<span class="nc" id="L125">        StringBuilder json = new StringBuilder();</span>
+<span class="nc" id="L126">        json.append(&quot;{\n&quot;);</span>
+<span class="nc" id="L127">        json.append(&quot;  \&quot;timestamp\&quot;: \&quot;&quot;).append(LocalDateTime.now()).append(&quot;\&quot;,\n&quot;);</span>
+<span class="nc" id="L128">        json.append(&quot;  \&quot;secrets\&quot;: {\n&quot;);</span>
+
+<span class="nc" id="L130">        int count = 0;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        for (Map.Entry&lt;String, String&gt; entry : secrets.entrySet()) {</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (count &gt; 0) {</span>
+<span class="nc" id="L133">                json.append(&quot;,\n&quot;);</span>
+            }
+<span class="nc" id="L135">            json.append(&quot;    \&quot;&quot;).append(entry.getKey()).append(&quot;\&quot;: \&quot;&quot;);</span>
+<span class="nc" id="L136">            json.append(encryptValue(entry.getValue())).append(&quot;\&quot;&quot;);</span>
+<span class="nc" id="L137">            count++;</span>
+<span class="nc" id="L138">        }</span>
+
+<span class="nc" id="L140">        json.append(&quot;\n  }\n&quot;);</span>
+<span class="nc" id="L141">        json.append(&quot;}\n&quot;);</span>
+
+        // Salvar em arquivo
+<span class="nc" id="L144">        try (FileWriter writer = new FileWriter(filename)) {</span>
+<span class="nc" id="L145">            writer.write(json.toString());</span>
+        }
+<span class="nc" id="L147">    }</span>
+
+    /**
+     * Criptografa valor (simulação - usar AES-256-GCM em produção)
+     */
+    private String encryptValue(String value) {
+        // Em produção, implementar criptografia real
+<span class="nc" id="L154">        return java.util.Base64.getEncoder().encodeToString(value.getBytes());</span>
+    }
+
+    /**
+     * Descriptografa valor
+     */
+    private String decryptValue(String encryptedValue) {
+        // Em produção, implementar descriptografia real
+<span class="nc" id="L162">        return new String(java.util.Base64.getDecoder().decode(encryptedValue));</span>
+    }
+
+    /**
+     * Limpa backups antigos (mantém últimos 30 dias)
+     */
+    private void cleanOldBackups() {
+        try {
+<span class="nc" id="L170">            File backupDir = new File(backupPath);</span>
+<span class="nc" id="L171">            File[] files = backupDir.listFiles((dir, name) -&gt; name.startsWith(&quot;keyvault_backup_&quot;));</span>
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (files != null) {</span>
+<span class="nc" id="L174">                long cutoffTime = System.currentTimeMillis() - (RETENTION_DAYS * 24L * 60 * 60 * 1000);</span>
+
+<span class="nc" id="L176">                int deleted = 0;</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                for (File file : files) {</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                    if (file.lastModified() &lt; cutoffTime) {</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                        if (file.delete()) {</span>
+<span class="nc" id="L180">                            deleted++;</span>
+<span class="nc" id="L181">                            logger.debug(&quot;[BACKUP] Backup antigo removido: {}&quot;, file.getName());</span>
+                        }
+                    }
+                }
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (deleted &gt; 0) {</span>
+<span class="nc" id="L187">                    logger.info(&quot;[BACKUP] {} backups antigos removidos&quot;, deleted);</span>
+                }
+            }
+
+<span class="nc" id="L191">        } catch (Exception e) {</span>
+<span class="nc" id="L192">            logger.error(&quot;[BACKUP] Erro ao limpar backups antigos&quot;, e);</span>
+<span class="nc" id="L193">        }</span>
+<span class="nc" id="L194">    }</span>
+
+    /**
+     * Restaura backup de uma data específica
+     * 
+     * @param backupFile Nome do arquivo de backup
+     * @return true se restaurado com sucesso
+     */
+    public boolean restoreBackup(String backupFile) {
+<span class="nc" id="L203">        logger.info(&quot;[RECOVERY] Iniciando restauração do backup: {}&quot;, backupFile);</span>
+
+        try {
+            // Ler arquivo de backup
+<span class="nc" id="L207">            String content = Files.readString(Paths.get(backupPath + &quot;/&quot; + backupFile));</span>
+
+            // Parse JSON (simplificado - usar biblioteca JSON em produção)
+<span class="nc" id="L210">            Map&lt;String, String&gt; secrets = parseBackupFile(content);</span>
+
+            // Restaurar cada secret
+<span class="nc" id="L213">            int restored = 0;</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            for (Map.Entry&lt;String, String&gt; entry : secrets.entrySet()) {</span>
+                try {
+<span class="nc" id="L216">                    String decryptedValue = decryptValue(entry.getValue());</span>
+<span class="nc" id="L217">                    secretClient.setSecret(entry.getKey(), decryptedValue);</span>
+<span class="nc" id="L218">                    restored++;</span>
+<span class="nc" id="L219">                } catch (Exception e) {</span>
+<span class="nc" id="L220">                    logger.warn(&quot;[RECOVERY] Erro ao restaurar secret: {}&quot;, entry.getKey(), e);</span>
+<span class="nc" id="L221">                }</span>
+<span class="nc" id="L222">            }</span>
+
+<span class="nc" id="L224">            logger.info(&quot;[RECOVERY] Restauração concluída - Secrets restaurados: {}&quot;, restored);</span>
+<span class="nc" id="L225">            auditLogger.logRecoveryCompleted(backupFile, restored);</span>
+
+<span class="nc" id="L227">            return true;</span>
+
+<span class="nc" id="L229">        } catch (Exception e) {</span>
+<span class="nc" id="L230">            logger.error(&quot;[RECOVERY] Erro ao restaurar backup&quot;, e);</span>
+<span class="nc" id="L231">            auditLogger.logRecoveryFailed(backupFile, e);</span>
+<span class="nc" id="L232">            return false;</span>
+        }
+    }
+
+    /**
+     * Parse simplificado do arquivo de backup
+     */
+    private Map&lt;String, String&gt; parseBackupFile(String content) {
+        // Em produção, usar biblioteca JSON (Jackson, Gson, etc)
+<span class="nc" id="L241">        Map&lt;String, String&gt; secrets = new HashMap&lt;&gt;();</span>
+        
+        // Implementação simplificada
+<span class="nc" id="L244">        String[] lines = content.split(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        for (String line : lines) {</span>
+<span class="nc bnc" id="L246" title="All 6 branches missed.">            if (line.contains(&quot;:&quot;) &amp;&amp; !line.contains(&quot;timestamp&quot;) &amp;&amp; !line.contains(&quot;secrets&quot;)) {</span>
+<span class="nc" id="L247">                String[] parts = line.split(&quot;:&quot;);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">                if (parts.length == 2) {</span>
+<span class="nc" id="L249">                    String key = parts[0].trim().replace(&quot;\&quot;&quot;, &quot;&quot;).replace(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L250">                    String value = parts[1].trim().replace(&quot;\&quot;&quot;, &quot;&quot;).replace(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L251">                    secrets.put(key, value);</span>
+                }
+            }
+        }
+        
+<span class="nc" id="L256">        return secrets;</span>
+    }
+
+    /**
+     * Lista backups disponíveis
+     * 
+     * @return Lista de arquivos de backup
+     */
+    public List&lt;String&gt; listAvailableBackups() {
+<span class="nc" id="L265">        List&lt;String&gt; backups = new ArrayList&lt;&gt;();</span>
+
+        try {
+<span class="nc" id="L268">            File backupDir = new File(backupPath);</span>
+<span class="nc" id="L269">            File[] files = backupDir.listFiles((dir, name) -&gt; name.startsWith(&quot;keyvault_backup_&quot;));</span>
+
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (files != null) {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                for (File file : files) {</span>
+<span class="nc" id="L273">                    backups.add(file.getName());</span>
+                }
+            }
+
+<span class="nc" id="L277">        } catch (Exception e) {</span>
+<span class="nc" id="L278">            logger.error(&quot;[BACKUP] Erro ao listar backups&quot;, e);</span>
+<span class="nc" id="L279">        }</span>
+
+<span class="nc" id="L281">        return backups;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

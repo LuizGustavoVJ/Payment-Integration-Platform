@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">WebhookService.java</span></div><h1>WebhookService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.messaging.WebhookProducer;
+import com.pip.model.Lojista;
+import com.pip.model.Transacao;
+import com.pip.model.WebhookEvent;
+import com.pip.repository.WebhookEventRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Serviço de gerenciamento e envio de webhooks
+ * 
+ * Implementa:
+ * - Criação de webhooks para eventos de transação
+ * - Envio com assinatura HMAC-SHA256
+ * - Retry com backoff exponencial
+ * - Registro de tentativas e respostas
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="fc" id="L36">public class WebhookService {</span>
+
+<span class="fc" id="L38">    private static final Logger logger = LoggerFactory.getLogger(WebhookService.class);</span>
+    private static final String HMAC_ALGORITHM = &quot;HmacSHA256&quot;;
+
+    @Autowired
+    private WebhookEventRepository webhookEventRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private WebhookProducer webhookProducer;
+
+    /**
+     * Cria webhook para evento de transação
+     * 
+     * @param lojista Lojista destinatário
+     * @param transacao Transação que gerou o evento
+     * @param evento Tipo do evento
+     */
+    public WebhookEvent criarWebhook(Lojista lojista, Transacao transacao, String evento) {
+<span class="fc" id="L61">        logger.info(&quot;Criando webhook para evento {} da transação {}&quot;, evento, transacao.getTransactionId());</span>
+
+        // Verificar se lojista tem webhook configurado
+<span class="pc bpc" id="L64" title="1 of 4 branches missed.">        if (lojista.getWebhookUrl() == null || lojista.getWebhookUrl().trim().isEmpty()) {</span>
+<span class="fc" id="L65">            logger.warn(&quot;Lojista {} não tem webhook configurado&quot;, lojista.getId());</span>
+<span class="fc" id="L66">            return null;</span>
+        }
+
+        // Criar payload do webhook
+<span class="fc" id="L70">        Map&lt;String, Object&gt; payload = criarPayload(transacao, evento);</span>
+
+        // Converter payload para JSON
+        String payloadJson;
+        try {
+<span class="fc" id="L75">            payloadJson = objectMapper.writeValueAsString(payload);</span>
+<span class="nc" id="L76">        } catch (Exception e) {</span>
+<span class="nc" id="L77">            logger.error(&quot;Erro ao serializar payload do webhook: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L78">            return null;</span>
+<span class="fc" id="L79">        }</span>
+
+        // Gerar assinatura HMAC
+<span class="fc" id="L82">        String signature = null;</span>
+<span class="pc bpc" id="L83" title="2 of 4 branches missed.">        if (lojista.getWebhookSecret() != null &amp;&amp; !lojista.getWebhookSecret().trim().isEmpty()) {</span>
+<span class="fc" id="L84">            signature = gerarAssinatura(payloadJson, lojista.getWebhookSecret());</span>
+        }
+
+        // Criar entidade WebhookEvent
+<span class="fc" id="L88">        WebhookEvent webhookEvent = new WebhookEvent();</span>
+<span class="fc" id="L89">        webhookEvent.setLojista(lojista);</span>
+<span class="fc" id="L90">        webhookEvent.setTransacao(transacao);</span>
+<span class="fc" id="L91">        webhookEvent.setEvento(evento);</span>
+<span class="fc" id="L92">        webhookEvent.setUrl(lojista.getWebhookUrl());</span>
+<span class="fc" id="L93">        webhookEvent.setPayload(payloadJson);</span>
+<span class="fc" id="L94">        webhookEvent.setSignature(signature);</span>
+<span class="fc" id="L95">        webhookEvent.setStatus(&quot;PENDING&quot;);</span>
+<span class="fc" id="L96">        webhookEvent.setTentativas(0);</span>
+<span class="fc" id="L97">        webhookEvent.setMaxTentativas(5);</span>
+<span class="fc" id="L98">        webhookEvent.setCreatedAt(ZonedDateTime.now());</span>
+
+        // Salvar webhook event
+<span class="fc" id="L101">        webhookEvent = webhookEventRepository.save(webhookEvent);</span>
+
+<span class="fc" id="L103">        logger.info(&quot;Webhook event criado com ID: {}&quot;, webhookEvent.getId());</span>
+
+        // Enviar para fila RabbitMQ para processamento assíncrono
+        try {
+<span class="nc" id="L107">            webhookProducer.sendWebhook(webhookEvent.getId());</span>
+<span class="nc" id="L108">            logger.info(&quot;Webhook {} enviado para fila RabbitMQ&quot;, webhookEvent.getId());</span>
+<span class="fc" id="L109">        } catch (Exception e) {</span>
+<span class="fc" id="L110">            logger.error(&quot;Erro ao enviar webhook para fila: {}&quot;, e.getMessage(), e);</span>
+<span class="nc" id="L111">        }</span>
+
+<span class="fc" id="L113">        return webhookEvent;</span>
+    }
+
+    /**
+     * Envia webhook para o lojista
+     * 
+     * @param webhook Webhook a ser enviado
+     * @return true se enviado com sucesso, false caso contrário
+     */
+    public boolean enviarWebhook(WebhookEvent webhook) {
+<span class="fc" id="L123">        logger.info(&quot;Enviando webhook {} para URL {}&quot;, webhook.getId(), webhook.getUrl());</span>
+
+        // Verificar se já atingiu número máximo de tentativas
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (webhook.getTentativas() &gt;= webhook.getMaxTentativas()) {</span>
+<span class="fc" id="L127">            logger.warn(&quot;Webhook {} atingiu número máximo de tentativas&quot;, webhook.getId());</span>
+<span class="fc" id="L128">            webhook.setStatus(&quot;FAILED&quot;);</span>
+<span class="fc" id="L129">            webhook.setErrorMessage(&quot;Número máximo de tentativas excedido&quot;);</span>
+<span class="fc" id="L130">            webhook.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="fc" id="L131">            webhookEventRepository.save(webhook);</span>
+<span class="fc" id="L132">            return false;</span>
+        }
+
+        // Atualizar status para SENDING
+<span class="fc" id="L136">        webhook.setStatus(&quot;SENDING&quot;);</span>
+<span class="fc" id="L137">        webhook.setTentativas(webhook.getTentativas() + 1);</span>
+<span class="fc" id="L138">        webhook.setEnviadoAt(ZonedDateTime.now());</span>
+<span class="fc" id="L139">        webhook.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="fc" id="L140">        webhookEventRepository.save(webhook);</span>
+
+        try {
+            // Preparar requisição
+<span class="fc" id="L144">            HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L145">            headers.setContentType(MediaType.APPLICATION_JSON);</span>
+            
+            // Adicionar assinatura se disponível
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">            if (webhook.getSignature() != null) {</span>
+<span class="nc" id="L149">                headers.set(&quot;X-Webhook-Signature&quot;, webhook.getSignature());</span>
+            }
+            
+            // Adicionar headers adicionais
+<span class="fc" id="L153">            headers.set(&quot;X-Webhook-Event&quot;, webhook.getEvento());</span>
+<span class="fc" id="L154">            headers.set(&quot;X-Webhook-Id&quot;, webhook.getId().toString());</span>
+<span class="fc" id="L155">            headers.set(&quot;X-Webhook-Attempt&quot;, String.valueOf(webhook.getTentativas()));</span>
+
+<span class="fc" id="L157">            HttpEntity&lt;String&gt; entity = new HttpEntity&lt;&gt;(webhook.getPayload(), headers);</span>
+
+            // Enviar webhook
+<span class="fc" id="L160">            ResponseEntity&lt;String&gt; response = restTemplate.exchange(</span>
+<span class="fc" id="L161">                webhook.getUrl(),</span>
+                HttpMethod.POST,
+                entity,
+                String.class
+            );
+
+            // Processar resposta
+<span class="fc" id="L168">            webhook.setHttpStatus(response.getStatusCode().value());</span>
+<span class="fc" id="L169">            webhook.setResponseBody(response.getBody());</span>
+
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">            if (response.getStatusCode().is2xxSuccessful()) {</span>
+<span class="fc" id="L172">                webhook.setStatus(&quot;SUCCESS&quot;);</span>
+<span class="fc" id="L173">                webhook.setSucessoAt(ZonedDateTime.now());</span>
+<span class="fc" id="L174">                webhook.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="fc" id="L175">                webhookEventRepository.save(webhook);</span>
+
+<span class="fc" id="L177">                logger.info(&quot;Webhook {} enviado com sucesso. Status: {}&quot;, </span>
+<span class="fc" id="L178">                    webhook.getId(), response.getStatusCode());</span>
+
+<span class="fc" id="L180">                return true;</span>
+            } else {
+                // Status não é 2xx - considerar falha
+<span class="nc" id="L183">                webhook.setStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L184">                webhook.setErrorMessage(&quot;HTTP Status: &quot; + response.getStatusCode());</span>
+<span class="nc" id="L185">                webhook.setUpdatedAt(ZonedDateTime.now());</span>
+                
+                // Agendar próxima tentativa
+<span class="nc" id="L188">                agendarProximaTentativa(webhook);</span>
+                
+<span class="nc" id="L190">                webhookEventRepository.save(webhook);</span>
+
+<span class="nc" id="L192">                logger.warn(&quot;Webhook {} falhou com status {}. Tentativa {}/{}&quot;,</span>
+<span class="nc" id="L193">                    webhook.getId(), response.getStatusCode(), </span>
+<span class="nc" id="L194">                    webhook.getTentativas(), webhook.getMaxTentativas());</span>
+
+<span class="nc" id="L196">                return false;</span>
+            }
+
+<span class="nc" id="L199">        } catch (Exception e) {</span>
+<span class="nc" id="L200">            logger.error(&quot;Erro ao enviar webhook {}: {}&quot;, webhook.getId(), e.getMessage());</span>
+
+<span class="nc" id="L202">            webhook.setStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L203">            webhook.setErrorMessage(e.getMessage());</span>
+<span class="nc" id="L204">            webhook.setUpdatedAt(ZonedDateTime.now());</span>
+            
+            // Agendar próxima tentativa
+<span class="nc" id="L207">            agendarProximaTentativa(webhook);</span>
+            
+<span class="nc" id="L209">            webhookEventRepository.save(webhook);</span>
+
+<span class="nc" id="L211">            return false;</span>
+        }
+    }
+
+    /**
+     * Agenda próxima tentativa de envio com backoff exponencial
+     * 
+     * @param webhook Webhook que falhou
+     */
+    private void agendarProximaTentativa(WebhookEvent webhook) {
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        if (webhook.getTentativas() &lt; webhook.getMaxTentativas()) {</span>
+            // Backoff exponencial: 1min, 2min, 4min, 8min, 16min
+<span class="nc" id="L223">            long minutosEspera = (long) Math.pow(2, webhook.getTentativas() - 1);</span>
+<span class="nc" id="L224">            ZonedDateTime proximaTentativa = ZonedDateTime.now().plusMinutes(minutosEspera);</span>
+            
+<span class="nc" id="L226">            webhook.setProximaTentativa(proximaTentativa);</span>
+<span class="nc" id="L227">            webhook.setStatus(&quot;PENDING&quot;);</span>
+
+<span class="nc" id="L229">            logger.info(&quot;Próxima tentativa do webhook {} agendada para {}&quot;, </span>
+<span class="nc" id="L230">                webhook.getId(), proximaTentativa);</span>
+<span class="nc" id="L231">        } else {</span>
+<span class="nc" id="L232">            webhook.setStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L233">            webhook.setProximaTentativa(null);</span>
+            
+<span class="nc" id="L235">            logger.warn(&quot;Webhook {} falhou definitivamente após {} tentativas&quot;, </span>
+<span class="nc" id="L236">                webhook.getId(), webhook.getTentativas());</span>
+        }
+<span class="nc" id="L238">    }</span>
+
+    /**
+     * Cria payload do webhook
+     */
+    private Map&lt;String, Object&gt; criarPayload(Transacao transacao, String evento) {
+<span class="fc" id="L244">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+<span class="fc" id="L246">        payload.put(&quot;event&quot;, evento);</span>
+<span class="fc" id="L247">        payload.put(&quot;timestamp&quot;, ZonedDateTime.now().toString());</span>
+        
+        // Dados da transação
+<span class="fc" id="L250">        Map&lt;String, Object&gt; transactionData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L251">        transactionData.put(&quot;transaction_id&quot;, transacao.getTransactionId());</span>
+<span class="fc" id="L252">        transactionData.put(&quot;gateway_transaction_id&quot;, transacao.getGatewayTransactionId());</span>
+<span class="fc" id="L253">        transactionData.put(&quot;status&quot;, transacao.getStatus());</span>
+<span class="fc" id="L254">        transactionData.put(&quot;amount&quot;, transacao.getValor());</span>
+<span class="fc" id="L255">        transactionData.put(&quot;currency&quot;, transacao.getMoeda());</span>
+<span class="fc" id="L256">        transactionData.put(&quot;installments&quot;, transacao.getParcelas());</span>
+<span class="fc" id="L257">        transactionData.put(&quot;authorization_code&quot;, transacao.getAuthorizationCode());</span>
+<span class="fc" id="L258">        transactionData.put(&quot;nsu&quot;, transacao.getNsu());</span>
+<span class="fc" id="L259">        transactionData.put(&quot;tid&quot;, transacao.getTid());</span>
+<span class="fc" id="L260">        transactionData.put(&quot;created_at&quot;, transacao.getCreatedAt().toString());</span>
+        
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">        if (transacao.getAuthorizedAt() != null) {</span>
+<span class="nc" id="L263">            transactionData.put(&quot;authorized_at&quot;, transacao.getAuthorizedAt().toString());</span>
+        }
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (transacao.getCapturedAt() != null) {</span>
+<span class="nc" id="L266">            transactionData.put(&quot;captured_at&quot;, transacao.getCapturedAt().toString());</span>
+        }
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">        if (transacao.getVoidedAt() != null) {</span>
+<span class="nc" id="L269">            transactionData.put(&quot;voided_at&quot;, transacao.getVoidedAt().toString());</span>
+        }
+        
+        // Dados do cartão (apenas últimos 4 dígitos)
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">        if (transacao.getCardLastDigits() != null) {</span>
+<span class="nc" id="L274">            Map&lt;String, Object&gt; cardData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L275">            cardData.put(&quot;brand&quot;, transacao.getCardBrand());</span>
+<span class="nc" id="L276">            cardData.put(&quot;last_digits&quot;, transacao.getCardLastDigits());</span>
+<span class="nc" id="L277">            transactionData.put(&quot;card&quot;, cardData);</span>
+        }
+        
+        // Dados do cliente
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">        if (transacao.getCustomerName() != null) {</span>
+<span class="nc" id="L282">            Map&lt;String, Object&gt; customerData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L283">            customerData.put(&quot;name&quot;, transacao.getCustomerName());</span>
+<span class="nc" id="L284">            customerData.put(&quot;email&quot;, transacao.getCustomerEmail());</span>
+<span class="nc" id="L285">            customerData.put(&quot;document&quot;, transacao.getCustomerDocument());</span>
+<span class="nc" id="L286">            transactionData.put(&quot;customer&quot;, customerData);</span>
+        }
+        
+<span class="fc" id="L289">        payload.put(&quot;transaction&quot;, transactionData);</span>
+        
+<span class="fc" id="L291">        return payload;</span>
+    }
+
+    /**
+     * Gera assinatura HMAC-SHA256 do payload
+     */
+    String gerarAssinatura(String payload, String secret) {
+        try {
+<span class="fc" id="L299">            Mac mac = Mac.getInstance(HMAC_ALGORITHM);</span>
+<span class="fc" id="L300">            SecretKeySpec secretKeySpec = new SecretKeySpec(</span>
+<span class="fc" id="L301">                secret.getBytes(StandardCharsets.UTF_8), </span>
+                HMAC_ALGORITHM
+            );
+<span class="fc" id="L304">            mac.init(secretKeySpec);</span>
+            
+<span class="fc" id="L306">            byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L307">            return Base64.getEncoder().encodeToString(hmacBytes);</span>
+            
+<span class="nc" id="L309">        } catch (Exception e) {</span>
+<span class="nc" id="L310">            logger.error(&quot;Erro ao gerar assinatura HMAC: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L311">            return null;</span>
+        }
+    }
+
+    /**
+     * Verifica assinatura do webhook
+     * 
+     * @param payload Payload do webhook
+     * @param signature Assinatura recebida
+     * @param secret Secret do lojista
+     * @return true se assinatura é válida
+     */
+    public boolean verificarAssinatura(String payload, String signature, String secret) {
+<span class="fc" id="L324">        String expectedSignature = gerarAssinatura(payload, secret);</span>
+<span class="pc bpc" id="L325" title="1 of 4 branches missed.">        return expectedSignature != null &amp;&amp; expectedSignature.equals(signature);</span>
+    }
+
+    /**
+     * Cancela um webhook pendente ou falhado
+     * 
+     * @param webhookId ID do webhook
+     */
+    public void cancelarWebhook(String webhookEventId) {
+<span class="nc" id="L334">        webhookEventRepository.findById(java.util.UUID.fromString(webhookEventId))</span>
+<span class="nc" id="L335">            .ifPresent(webhookEvent -&gt; {</span>
+<span class="nc bnc" id="L336" title="All 4 branches missed.">                if (&quot;PENDING&quot;.equals(webhookEvent.getStatus()) || &quot;FAILED&quot;.equals(webhookEvent.getStatus())) {</span>
+<span class="nc" id="L337">                    webhookEvent.setStatus(&quot;CANCELLED&quot;);</span>
+<span class="nc" id="L338">                    webhookEvent.setUpdatedAt(ZonedDateTime.now());</span>
+<span class="nc" id="L339">                    webhookEventRepository.save(webhookEvent);</span>
+                    
+<span class="nc" id="L341">                    logger.info(&quot;Webhook event {} cancelado&quot;, webhookEventId);</span>
+                }
+<span class="nc" id="L343">            });</span>
+<span class="nc" id="L344">    }</span>
+
+    /**
+     * Cria webhook para transação (busca lojista automaticamente)
+     * 
+     * @param transacao Transação que gerou o evento
+     * @param evento Tipo do evento
+     */
+    public WebhookEvent criarWebhookParaTransacao(Transacao transacao, String evento) {
+<span class="nc" id="L353">        Lojista lojista = transacao.getLojista();</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        if (lojista == null) {</span>
+<span class="nc" id="L355">            logger.warn(&quot;Transação {} não tem lojista associado&quot;, transacao.getId());</span>
+<span class="nc" id="L356">            return null;</span>
+        }
+<span class="nc" id="L358">        return criarWebhook(lojista, transacao, evento);</span>
+    }
+
+    /**
+     * Notifica o lojista sobre uma transação via webhook
+     * 
+     * @param transacao Transação a ser notificada
+     */
+    public void notificarLojista(Transacao transacao) {
+        try {
+<span class="nc" id="L368">            logger.info(&quot;Notificando lojista sobre transação {}&quot;, transacao.getId());</span>
+            
+            // Criar evento de webhook
+<span class="nc" id="L371">            criarWebhookParaTransacao(transacao, &quot;transaction.updated&quot;);</span>
+            
+<span class="nc" id="L373">        } catch (Exception e) {</span>
+<span class="nc" id="L374">            logger.error(&quot;Erro ao notificar lojista sobre transação {}: {}&quot;, </span>
+<span class="nc" id="L375">                transacao.getId(), e.getMessage(), e);</span>
+<span class="nc" id="L376">        }</span>
+<span class="nc" id="L377">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

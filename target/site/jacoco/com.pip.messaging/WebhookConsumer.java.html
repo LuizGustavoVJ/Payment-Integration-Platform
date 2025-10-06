@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookConsumer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.messaging</a> &gt; <span class="el_source">WebhookConsumer.java</span></div><h1>WebhookConsumer.java</h1><pre class="source lang-java linenums">package com.pip.messaging;
+
+import com.pip.config.RabbitMQConfig;
+import com.pip.dto.WebhookMessage;
+import com.pip.model.WebhookEvent;
+import com.pip.repository.WebhookEventRepository;
+import com.pip.service.WebhookService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.Optional;
+
+/**
+ * Consumer para processar webhooks da fila RabbitMQ
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Component
+<span class="nc" id="L22">public class WebhookConsumer {</span>
+
+<span class="nc" id="L24">    private static final Logger logger = LoggerFactory.getLogger(WebhookConsumer.class);</span>
+    private static final int MAX_ATTEMPTS = 5;
+
+    @Autowired
+    private WebhookService webhookService;
+
+    @Autowired
+    private WebhookEventRepository webhookEventRepository;
+
+    @Autowired
+    private WebhookProducer webhookProducer;
+
+    /**
+     * Processa webhooks da fila principal
+     * 
+     * @param message Mensagem do webhook
+     */
+    @RabbitListener(queues = RabbitMQConfig.WEBHOOK_QUEUE)
+    public void processWebhook(WebhookMessage message) {
+<span class="nc" id="L43">        logger.info(&quot;Processando webhook da fila: {} (tentativa {})&quot;, </span>
+<span class="nc" id="L44">            message.getWebhookEventId(), message.getAttemptNumber());</span>
+
+        try {
+            // Buscar evento de webhook
+<span class="nc" id="L48">            Optional&lt;WebhookEvent&gt; eventOpt = webhookEventRepository.findById(message.getWebhookEventId());</span>
+            
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (eventOpt.isEmpty()) {</span>
+<span class="nc" id="L51">                logger.warn(&quot;Webhook event não encontrado: {}&quot;, message.getWebhookEventId());</span>
+<span class="nc" id="L52">                return;</span>
+            }
+
+<span class="nc" id="L55">            WebhookEvent event = eventOpt.get();</span>
+
+            // Verificar se já foi enviado com sucesso
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (&quot;SUCCESS&quot;.equals(event.getStatus())) {</span>
+<span class="nc" id="L59">                logger.info(&quot;Webhook já foi enviado com sucesso: {}&quot;, message.getWebhookEventId());</span>
+<span class="nc" id="L60">                return;</span>
+            }
+
+            // Tentar enviar webhook
+<span class="nc" id="L64">            boolean success = webhookService.enviarWebhook(event);</span>
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (success) {</span>
+<span class="nc" id="L67">                logger.info(&quot;Webhook enviado com sucesso: {}&quot;, message.getWebhookEventId());</span>
+            } else {
+                // Falhou - verificar se deve retentar
+<span class="nc" id="L70">                handleWebhookFailure(message, event);</span>
+            }
+
+<span class="nc" id="L73">        } catch (Exception e) {</span>
+<span class="nc" id="L74">            logger.error(&quot;Erro ao processar webhook {}: {}&quot;, message.getWebhookEventId(), e.getMessage(), e);</span>
+            
+            // Tentar buscar o evento para retry
+<span class="nc" id="L77">            webhookEventRepository.findById(message.getWebhookEventId())</span>
+<span class="nc" id="L78">                .ifPresent(event -&gt; handleWebhookFailure(message, event));</span>
+<span class="nc" id="L79">        }</span>
+<span class="nc" id="L80">    }</span>
+
+    /**
+     * Processa webhooks da Dead Letter Queue
+     * 
+     * @param message Mensagem do webhook
+     */
+    @RabbitListener(queues = RabbitMQConfig.WEBHOOK_DLQ)
+    public void processWebhookDLQ(WebhookMessage message) {
+<span class="nc" id="L89">        logger.error(&quot;Webhook movido para DLQ após {} tentativas: {}&quot;, </span>
+<span class="nc" id="L90">            message.getAttemptNumber(), message.getWebhookEventId());</span>
+
+        try {
+            // Marcar webhook como falhado permanentemente
+<span class="nc" id="L94">            webhookEventRepository.findById(message.getWebhookEventId())</span>
+<span class="nc" id="L95">                .ifPresent(event -&gt; {</span>
+<span class="nc" id="L96">                    event.setStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L97">                    event.setErrorMessage(&quot;Falhou após &quot; + message.getAttemptNumber() + &quot; tentativas&quot;);</span>
+<span class="nc" id="L98">                    webhookEventRepository.save(event);</span>
+                    
+<span class="nc" id="L100">                    logger.info(&quot;Webhook marcado como FAILED: {}&quot;, message.getWebhookEventId());</span>
+<span class="nc" id="L101">                });</span>
+
+<span class="nc" id="L103">        } catch (Exception e) {</span>
+<span class="nc" id="L104">            logger.error(&quot;Erro ao processar webhook da DLQ: {}&quot;, e.getMessage(), e);</span>
+<span class="nc" id="L105">        }</span>
+<span class="nc" id="L106">    }</span>
+
+    /**
+     * Trata falha no envio de webhook
+     * 
+     * @param message Mensagem do webhook
+     * @param event Evento do webhook
+     */
+    private void handleWebhookFailure(WebhookMessage message, WebhookEvent event) {
+<span class="nc" id="L115">        int nextAttempt = message.getAttemptNumber() + 1;</span>
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (nextAttempt &lt;= MAX_ATTEMPTS) {</span>
+<span class="nc" id="L118">            logger.info(&quot;Agendando retry {} para webhook: {}&quot;, nextAttempt, message.getWebhookEventId());</span>
+            
+            // Enviar para fila de retry
+<span class="nc" id="L121">            webhookProducer.sendWebhookToRetry(message.getWebhookEventId(), nextAttempt);</span>
+            
+        } else {
+<span class="nc" id="L124">            logger.warn(&quot;Webhook atingiu número máximo de tentativas: {}&quot;, message.getWebhookEventId());</span>
+            
+            // Marcar como falhado
+<span class="nc" id="L127">            event.setStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L128">            event.setErrorMessage(&quot;Falhou após &quot; + MAX_ATTEMPTS + &quot; tentativas&quot;);</span>
+<span class="nc" id="L129">            webhookEventRepository.save(event);</span>
+        }
+<span class="nc" id="L131">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

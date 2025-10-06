@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LojistaStatus.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">LojistaStatus.java</span></div><h1>LojistaStatus.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+<span class="fc" id="L3">public enum LojistaStatus {</span>
+<span class="fc" id="L4">    ATIVO(&quot;ativo&quot;, &quot;Ativo&quot;),</span>
+<span class="fc" id="L5">    INATIVO(&quot;inativo&quot;, &quot;Inativo&quot;),</span>
+<span class="fc" id="L6">    SUSPENSO(&quot;suspenso&quot;, &quot;Suspenso&quot;),</span>
+<span class="fc" id="L7">    PENDING(&quot;pending&quot;, &quot;Pendente&quot;),</span>
+<span class="fc" id="L8">    ACTIVE(&quot;active&quot;, &quot;Ativo&quot;),</span>
+<span class="fc" id="L9">    SUSPENDED(&quot;suspended&quot;, &quot;Suspenso&quot;),</span>
+<span class="fc" id="L10">    BLOCKED(&quot;blocked&quot;, &quot;Bloqueado&quot;);</span>
+
+    private final String code;
+    private final String description;
+
+<span class="fc" id="L15">    LojistaStatus(String code, String description) {</span>
+<span class="fc" id="L16">        this.code = code;</span>
+<span class="fc" id="L17">        this.description = description;</span>
+<span class="fc" id="L18">    }</span>
+
+    public String getCode() {
+<span class="nc" id="L21">        return code;</span>
+    }
+
+    public String getDescription() {
+<span class="nc" id="L25">        return description;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

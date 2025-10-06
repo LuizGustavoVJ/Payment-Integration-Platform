@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GatewayAdapterFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.gateway</a> &gt; <span class="el_source">GatewayAdapterFactory.java</span></div><h1>GatewayAdapterFactory.java</h1><pre class="source lang-java linenums">package com.pip.gateway;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Factory para gerenciar e fornecer adaptadores de gateway
+ * 
+ * Registra automaticamente todos os adaptadores disponíveis e fornece
+ * acesso aos adaptadores baseado no código do gateway.
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Component
+public class GatewayAdapterFactory {
+
+<span class="fc" id="L23">    private static final Logger logger = LoggerFactory.getLogger(GatewayAdapterFactory.class);</span>
+
+<span class="fc" id="L25">    private final Map&lt;String, GatewayAdapter&gt; adapters = new HashMap&lt;&gt;();</span>
+
+    /**
+     * Construtor que registra automaticamente todos os adaptadores disponíveis
+     * 
+     * @param adapterList Lista de adaptadores injetados pelo Spring
+     */
+    @Autowired
+<span class="fc" id="L33">    public GatewayAdapterFactory(List&lt;GatewayAdapter&gt; adapterList) {</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        for (GatewayAdapter adapter : adapterList) {</span>
+<span class="fc" id="L35">            String code = adapter.getGatewayCode();</span>
+<span class="fc" id="L36">            adapters.put(code, adapter);</span>
+<span class="fc" id="L37">            logger.info(&quot;Adaptador registrado: {}&quot;, code);</span>
+<span class="fc" id="L38">        }</span>
+        
+<span class="fc" id="L40">        logger.info(&quot;Total de adaptadores registrados: {}&quot;, adapters.size());</span>
+<span class="fc" id="L41">    }</span>
+
+    /**
+     * Obtém o adaptador para um gateway específico
+     * 
+     * @param gatewayCode Código do gateway (ex: &quot;CIELO&quot;, &quot;REDE&quot;, &quot;PIX&quot;)
+     * @return Adaptador correspondente
+     * @throws IllegalArgumentException se o adaptador não for encontrado
+     */
+    public GatewayAdapter getAdapter(String gatewayCode) {
+<span class="fc bfc" id="L51" title="All 4 branches covered.">        if (gatewayCode == null || gatewayCode.trim().isEmpty()) {</span>
+<span class="fc" id="L52">            throw new IllegalArgumentException(&quot;Código do gateway não pode ser vazio&quot;);</span>
+        }
+
+<span class="fc" id="L55">        String normalizedCode = gatewayCode.toUpperCase().trim();</span>
+<span class="fc" id="L56">        GatewayAdapter adapter = adapters.get(normalizedCode);</span>
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (adapter == null) {</span>
+<span class="fc" id="L59">            logger.error(&quot;Adaptador não encontrado para gateway: {}&quot;, gatewayCode);</span>
+<span class="fc" id="L60">            throw new IllegalArgumentException(&quot;Adaptador não encontrado para gateway: &quot; + gatewayCode);</span>
+        }
+
+<span class="fc" id="L63">        return adapter;</span>
+    }
+
+    /**
+     * Verifica se existe um adaptador para o gateway especificado
+     * 
+     * @param gatewayCode Código do gateway
+     * @return true se o adaptador existe, false caso contrário
+     */
+    public boolean hasAdapter(String gatewayCode) {
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">        if (gatewayCode == null || gatewayCode.trim().isEmpty()) {</span>
+<span class="fc" id="L74">            return false;</span>
+        }
+
+<span class="fc" id="L77">        String normalizedCode = gatewayCode.toUpperCase().trim();</span>
+<span class="fc" id="L78">        return adapters.containsKey(normalizedCode);</span>
+    }
+
+    /**
+     * Retorna a lista de códigos de gateways suportados
+     * 
+     * @return Lista de códigos de gateways
+     */
+    public List&lt;String&gt; getSupportedGateways() {
+<span class="fc" id="L87">        return List.copyOf(adapters.keySet());</span>
+    }
+
+    /**
+     * Retorna o número de adaptadores registrados
+     * 
+     * @return Número de adaptadores
+     */
+    public int getAdapterCount() {
+<span class="fc" id="L96">        return adapters.size();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityEventType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">SecurityEventType.java</span></div><h1>SecurityEventType.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+/**
+ * Enum para tipos de eventos de segurança auditados
+ */
+<span class="nc" id="L6">public enum SecurityEventType {</span>
+    
+    // Eventos de Tokenização
+<span class="nc" id="L9">    TOKENIZATION_START(&quot;Início de processo de tokenização&quot;),</span>
+<span class="nc" id="L10">    TOKENIZATION_SUCCESS(&quot;Tokenização realizada com sucesso&quot;),</span>
+<span class="nc" id="L11">    TOKENIZATION_FAILURE(&quot;Falha na tokenização&quot;),</span>
+    
+    // Eventos de Destokenização
+<span class="nc" id="L14">    DETOKENIZATION_START(&quot;Início de processo de destokenização&quot;),</span>
+<span class="nc" id="L15">    DETOKENIZATION_SUCCESS(&quot;Destokenização realizada com sucesso&quot;),</span>
+<span class="nc" id="L16">    DETOKENIZATION_FAILURE(&quot;Falha na destokenização&quot;),</span>
+    
+    // Eventos de API Key
+<span class="nc" id="L19">    API_KEY_USAGE(&quot;Uso de API Key&quot;),</span>
+<span class="nc" id="L20">    API_KEY_GENERATED(&quot;API Key gerada&quot;),</span>
+<span class="nc" id="L21">    API_KEY_ROTATED(&quot;API Key rotacionada&quot;),</span>
+<span class="nc" id="L22">    API_KEY_REVOKED(&quot;API Key revogada&quot;),</span>
+<span class="nc" id="L23">    API_KEY_ROTATION_NEEDED(&quot;Rotação de API Key necessária&quot;),</span>
+<span class="nc" id="L24">    INVALID_API_KEY(&quot;Tentativa de uso de API Key inválida&quot;),</span>
+<span class="nc" id="L25">    API_KEY_VALIDATION_ERROR(&quot;Erro na validação de API Key&quot;),</span>
+<span class="nc" id="L26">    API_KEY_GENERATION_ERROR(&quot;Erro na geração de API Key&quot;),</span>
+<span class="nc" id="L27">    API_KEY_ROTATION_ERROR(&quot;Erro na rotação de API Key&quot;),</span>
+<span class="nc" id="L28">    API_KEY_REVOCATION_ERROR(&quot;Erro na revogação de API Key&quot;),</span>
+    
+    // Eventos de Segurança
+<span class="nc" id="L31">    UNAUTHORIZED_ACCESS(&quot;Tentativa de acesso não autorizado&quot;),</span>
+<span class="nc" id="L32">    RATE_LIMIT_EXCEEDED(&quot;Limite de requisições excedido&quot;),</span>
+<span class="nc" id="L33">    SUSPICIOUS_ACTIVITY(&quot;Atividade suspeita detectada&quot;),</span>
+<span class="nc" id="L34">    SECURITY_BREACH(&quot;Violação de segurança&quot;),</span>
+    
+    // Eventos de Transação
+<span class="nc" id="L37">    PAYMENT_TRANSACTION(&quot;Transação de pagamento processada&quot;),</span>
+<span class="nc" id="L38">    PAYMENT_AUTHORIZATION(&quot;Autorização de pagamento&quot;),</span>
+<span class="nc" id="L39">    PAYMENT_CAPTURE(&quot;Captura de pagamento&quot;),</span>
+<span class="nc" id="L40">    PAYMENT_REFUND(&quot;Estorno de pagamento&quot;),</span>
+<span class="nc" id="L41">    PAYMENT_CANCELLATION(&quot;Cancelamento de pagamento&quot;),</span>
+    
+    // Eventos de Sistema
+<span class="nc" id="L44">    SYSTEM_STARTUP(&quot;Inicialização do sistema&quot;),</span>
+<span class="nc" id="L45">    SYSTEM_SHUTDOWN(&quot;Desligamento do sistema&quot;),</span>
+<span class="nc" id="L46">    CONFIGURATION_CHANGE(&quot;Alteração de configuração&quot;),</span>
+<span class="nc" id="L47">    DATABASE_CONNECTION(&quot;Conexão com banco de dados&quot;),</span>
+    
+    // Eventos de Auditoria
+<span class="nc" id="L50">    AUDIT_LOG_ACCESS(&quot;Acesso a logs de auditoria&quot;),</span>
+<span class="nc" id="L51">    AUDIT_LOG_EXPORT(&quot;Exportação de logs de auditoria&quot;),</span>
+<span class="nc" id="L52">    COMPLIANCE_CHECK(&quot;Verificação de conformidade&quot;),</span>
+    
+    // Eventos de Incidentes
+<span class="nc" id="L55">    INCIDENT_DETECTED(&quot;Incidente de segurança detectado&quot;),</span>
+<span class="nc" id="L56">    INCIDENT_RESOLVED(&quot;Incidente de segurança resolvido&quot;),</span>
+<span class="nc" id="L57">    EMERGENCY_MODE_ACTIVATED(&quot;Modo de emergência ativado&quot;),</span>
+<span class="nc" id="L58">    EMERGENCY_MODE_DEACTIVATED(&quot;Modo de emergência desativado&quot;),</span>
+    
+    // Eventos de Key Rotation
+<span class="nc" id="L61">    KEY_ROTATION(&quot;Rotação de chaves realizada&quot;),</span>
+<span class="nc" id="L62">    KEY_ROTATION_FAILED(&quot;Falha na rotação de chaves&quot;),</span>
+<span class="nc" id="L63">    SECRET_ROTATED(&quot;Secret rotacionado&quot;),</span>
+<span class="nc" id="L64">    SECRET_ROTATION_FAILED(&quot;Falha na rotação de secret&quot;),</span>
+    
+    // Eventos de Backup e Recovery
+<span class="nc" id="L67">    KEY_BACKUP(&quot;Backup de chaves realizado&quot;),</span>
+<span class="nc" id="L68">    KEY_RECOVERY(&quot;Recuperação de chaves realizada&quot;);</span>
+    
+    private final String description;
+    
+<span class="nc" id="L72">    SecurityEventType(String description) {</span>
+<span class="nc" id="L73">        this.description = description;</span>
+<span class="nc" id="L74">    }</span>
+    
+    public String getDescription() {
+<span class="nc" id="L77">        return description;</span>
+    }
+    
+    /**
+     * Determina a severidade padrão do evento
+     */
+    public String getDefaultSeverity() {
+<span class="nc bnc" id="L84" title="All 5 branches missed.">        switch (this) {</span>
+            case UNAUTHORIZED_ACCESS:
+            case SECURITY_BREACH:
+            case INCIDENT_DETECTED:
+            case EMERGENCY_MODE_ACTIVATED:
+<span class="nc" id="L89">                return &quot;CRITICAL&quot;;</span>
+                
+            case API_KEY_VALIDATION_ERROR:
+            case API_KEY_GENERATION_ERROR:
+            case SUSPICIOUS_ACTIVITY:
+            case RATE_LIMIT_EXCEEDED:
+<span class="nc" id="L95">                return &quot;HIGH&quot;;</span>
+                
+            case INVALID_API_KEY:
+            case TOKENIZATION_FAILURE:
+            case DETOKENIZATION_FAILURE:
+            case API_KEY_ROTATION_NEEDED:
+<span class="nc" id="L101">                return &quot;MEDIUM&quot;;</span>
+                
+            case API_KEY_USAGE:
+            case TOKENIZATION_SUCCESS:
+            case DETOKENIZATION_SUCCESS:
+            case PAYMENT_TRANSACTION:
+<span class="nc" id="L107">                return &quot;LOW&quot;;</span>
+                
+            default:
+<span class="nc" id="L110">                return &quot;INFO&quot;;</span>
+        }
+    }
+    
+    /**
+     * Verifica se o evento requer resposta imediata
+     */
+    public boolean requiresImmediateResponse() {
+<span class="nc bnc" id="L118" title="All 4 branches missed.">        return &quot;CRITICAL&quot;.equals(getDefaultSeverity()) || &quot;HIGH&quot;.equals(getDefaultSeverity());</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

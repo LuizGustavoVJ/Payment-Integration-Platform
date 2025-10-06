@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.dto</a> &gt; <span class="el_source">AuthorizationRequest.java</span></div><h1>AuthorizationRequest.java</h1><pre class="source lang-java linenums">package com.pip.dto;
+
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
+
+import java.util.Map;
+
+/**
+ * DTO para requisição de autorização de pagamento
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+public class AuthorizationRequest {
+
+    @NotNull(message = &quot;O valor é obrigatório&quot;)
+    @Positive(message = &quot;O valor deve ser positivo&quot;)
+    private Long amount;
+
+    @NotBlank(message = &quot;A moeda é obrigatória&quot;)
+    private String currency;
+
+    @NotBlank(message = &quot;O token do cartão é obrigatório&quot;)
+    private String cardToken;
+
+<span class="nc" id="L26">    private Boolean capture = true;</span>
+
+<span class="nc" id="L28">    private Integer installments = 1;</span>
+
+    private String description;
+
+    private Customer customer;
+    
+    private String softDescriptor;
+    
+    private Long serviceTaxAmount;
+    
+    private String solutionType;
+    
+<span class="nc" id="L40">    private Boolean saveCard = false;</span>
+    
+    private String cvv;
+
+    // Construtores
+<span class="nc" id="L45">    public AuthorizationRequest() {}</span>
+
+<span class="nc" id="L47">    public AuthorizationRequest(Long amount, String currency, String cardToken, Boolean capture) {</span>
+<span class="nc" id="L48">        this.amount = amount;</span>
+<span class="nc" id="L49">        this.currency = currency;</span>
+<span class="nc" id="L50">        this.cardToken = cardToken;</span>
+<span class="nc" id="L51">        this.capture = capture;</span>
+<span class="nc" id="L52">    }</span>
+
+    // Getters e Setters
+    public Long getAmount() {
+<span class="nc" id="L56">        return amount;</span>
+    }
+
+    public void setAmount(Long amount) {
+<span class="nc" id="L60">        this.amount = amount;</span>
+<span class="nc" id="L61">    }</span>
+
+    public String getCurrency() {
+<span class="nc" id="L64">        return currency;</span>
+    }
+
+    public void setCurrency(String currency) {
+<span class="nc" id="L68">        this.currency = currency;</span>
+<span class="nc" id="L69">    }</span>
+
+    public String getCardToken() {
+<span class="nc" id="L72">        return cardToken;</span>
+    }
+
+    public void setCardToken(String cardToken) {
+<span class="nc" id="L76">        this.cardToken = cardToken;</span>
+<span class="nc" id="L77">    }</span>
+
+    public Boolean getCapture() {
+<span class="nc" id="L80">        return capture;</span>
+    }
+
+    public void setCapture(Boolean capture) {
+<span class="nc" id="L84">        this.capture = capture;</span>
+<span class="nc" id="L85">    }</span>
+
+    public Integer getInstallments() {
+<span class="nc" id="L88">        return installments;</span>
+    }
+
+    public void setInstallments(Integer installments) {
+<span class="nc" id="L92">        this.installments = installments;</span>
+<span class="nc" id="L93">    }</span>
+
+    public String getDescription() {
+<span class="nc" id="L96">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L100">        this.description = description;</span>
+<span class="nc" id="L101">    }</span>
+
+    public Customer getCustomer() {
+<span class="nc" id="L104">        return customer;</span>
+    }
+
+    public void setCustomer(Customer customer) {
+<span class="nc" id="L108">        this.customer = customer;</span>
+<span class="nc" id="L109">    }</span>
+    
+    public String getSoftDescriptor() {
+<span class="nc" id="L112">        return softDescriptor;</span>
+    }
+    
+    public void setSoftDescriptor(String softDescriptor) {
+<span class="nc" id="L116">        this.softDescriptor = softDescriptor;</span>
+<span class="nc" id="L117">    }</span>
+    
+    public Long getServiceTaxAmount() {
+<span class="nc" id="L120">        return serviceTaxAmount;</span>
+    }
+    
+    public void setServiceTaxAmount(Long serviceTaxAmount) {
+<span class="nc" id="L124">        this.serviceTaxAmount = serviceTaxAmount;</span>
+<span class="nc" id="L125">    }</span>
+    
+    public String getSolutionType() {
+<span class="nc" id="L128">        return solutionType;</span>
+    }
+    
+    public void setSolutionType(String solutionType) {
+<span class="nc" id="L132">        this.solutionType = solutionType;</span>
+<span class="nc" id="L133">    }</span>
+    
+    public Boolean getSaveCard() {
+<span class="nc" id="L136">        return saveCard;</span>
+    }
+    
+    public void setSaveCard(Boolean saveCard) {
+<span class="nc" id="L140">        this.saveCard = saveCard;</span>
+<span class="nc" id="L141">    }</span>
+    
+    public String getCustomerName() {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        return customer != null ? customer.getName() : null;</span>
+    }
+    
+    public String getCustomerEmail() {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        return customer != null ? customer.getEmail() : null;</span>
+    }
+    
+    public String getCustomerDocument() {
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        return customer != null ? customer.getDocument() : null;</span>
+    }
+    
+    // Campos adicionais para gateways específicos
+    private String externalAuthentication;
+    private String initiatedTransactionIndicator;
+    private String paymentMethod;
+    
+    public String getExternalAuthentication() {
+<span class="nc" id="L161">        return externalAuthentication;</span>
+    }
+    
+    public void setExternalAuthentication(String externalAuthentication) {
+<span class="nc" id="L165">        this.externalAuthentication = externalAuthentication;</span>
+<span class="nc" id="L166">    }</span>
+    
+    public String getInitiatedTransactionIndicator() {
+<span class="nc" id="L169">        return initiatedTransactionIndicator;</span>
+    }
+    
+    public void setInitiatedTransactionIndicator(String initiatedTransactionIndicator) {
+<span class="nc" id="L173">        this.initiatedTransactionIndicator = initiatedTransactionIndicator;</span>
+<span class="nc" id="L174">    }</span>
+    
+    public String getPaymentMethod() {
+<span class="nc" id="L177">        return paymentMethod;</span>
+    }
+    
+    public void setPaymentMethod(String paymentMethod) {
+<span class="nc" id="L181">        this.paymentMethod = paymentMethod;</span>
+<span class="nc" id="L182">    }</span>
+    
+    // Campos adicionais para Rede
+    private String iata;
+    private Map&lt;String, Object&gt; threeDS;
+    
+    public String getIata() {
+<span class="nc" id="L189">        return iata;</span>
+    }
+    
+    public void setIata(String iata) {
+<span class="nc" id="L193">        this.iata = iata;</span>
+<span class="nc" id="L194">    }</span>
+    
+    public Map&lt;String, Object&gt; getThreeDS() {
+<span class="nc" id="L197">        return threeDS;</span>
+    }
+    
+    public void setThreeDS(Map&lt;String, Object&gt; threeDS) {
+<span class="nc" id="L201">        this.threeDS = threeDS;</span>
+<span class="nc" id="L202">    }</span>
+    
+    // Campos adicionais para Cielo e outros
+    private String cardBrand;
+    private String notificationUrl;
+    
+    public String getCardBrand() {
+<span class="nc" id="L209">        return cardBrand;</span>
+    }
+    
+    public void setCardBrand(String cardBrand) {
+<span class="nc" id="L213">        this.cardBrand = cardBrand;</span>
+<span class="nc" id="L214">    }</span>
+    
+    public String getNotificationUrl() {
+<span class="nc" id="L217">        return notificationUrl;</span>
+    }
+    
+    public void setNotificationUrl(String notificationUrl) {
+<span class="nc" id="L221">        this.notificationUrl = notificationUrl;</span>
+<span class="nc" id="L222">    }</span>
+    
+    public String getCvv() {
+<span class="nc" id="L225">        return cvv;</span>
+    }
+    
+    public void setCvv(String cvv) {
+<span class="nc" id="L229">        this.cvv = cvv;</span>
+<span class="nc" id="L230">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

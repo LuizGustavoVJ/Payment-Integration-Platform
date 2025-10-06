@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VisaAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.gateway</a> &gt; <span class="el_source">VisaAdapter.java</span></div><h1>VisaAdapter.java</h1><pre class="source lang-java linenums">package com.pip.gateway;
+
+import com.pip.dto.*;
+import com.pip.model.Gateway;
+import com.pip.model.Transacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Adaptador para Visa Direct - Funds Transfer API
+ * 
+ * ATENÇÃO: Este adaptador requer configuração adicional de infraestrutura:
+ * 
+ * 1. **Certificado Digital mTLS (Mutual TLS)**
+ *    - Obter certificado através do Visa Developer Portal
+ *    - Configurar keystore e truststore no RestTemplate
+ *    - Two-Way SSL authentication obrigatório
+ * 
+ * 2. **Credenciamento Formal**
+ *    - Registro no programa Visa Direct
+ *    - Obtenção de acquiringBin (BIN do adquirente)
+ *    - Configuração de businessApplicationId
+ * 
+ * 3. **Configuração de Rede**
+ *    - Whitelist de IPs na Visa
+ *    - Configuração de firewall para mTLS
+ * 
+ * Documentação: https://developer.visa.com/capabilities/visa_direct/reference
+ * 
+ * APIs Implementadas:
+ * - POST /fundstransfer/v1/pushfundstransactions (AFT/OCT)
+ * - POST /fundstransfer/v1/pullfundstransactions
+ * - POST /fundstransfer/v1/reversefundstransactions (AFTR)
+ * 
+ * @author Luiz Gustavo Finotello
+ * @version 3.0 - Conforme Documentação Oficial (Requer mTLS)
+ */
+@Component
+<span class="nc" id="L48">public class VisaAdapter implements GatewayAdapter {</span>
+
+<span class="nc" id="L50">    private static final Logger logger = LoggerFactory.getLogger(VisaAdapter.class);</span>
+    private static final String GATEWAY_CODE = &quot;VISA&quot;;
+    
+    private static final String SANDBOX_URL = &quot;https://sandbox.api.visa.com&quot;;
+    private static final String PRODUCTION_URL = &quot;https://api.visa.com&quot;;
+
+    @Autowired
+    private RestTemplate restTemplate; // DEVE ser configurado com mTLS
+
+    @Override
+    public PaymentResponse authorize(Gateway gateway, AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L61">        logger.warn(&quot;[VISA] ATENÇÃO: Visa Direct requer mTLS. Verifique configuração de certificados.&quot;);</span>
+<span class="nc" id="L62">        logger.info(&quot;[VISA] Iniciando Push Funds Transaction - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+        
+        try {
+<span class="nc" id="L65">            validateRequest(request, gateway);</span>
+            
+<span class="nc" id="L67">            Map&lt;String, Object&gt; payload = buildPushFundsPayload(request, transacao, gateway);</span>
+<span class="nc" id="L68">            HttpHeaders headers = buildHeaders(gateway);</span>
+            
+<span class="nc" id="L70">            String url = getBaseUrl(gateway) + &quot;/fundstransfer/v1/pushfundstransactions&quot;;</span>
+<span class="nc" id="L71">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+            
+<span class="nc" id="L73">            logger.debug(&quot;[VISA] Enviando Push Funds para: {}&quot;, url);</span>
+            
+<span class="nc" id="L75">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc" id="L82">            return processPushFundsResponse(response, transacao);</span>
+
+<span class="nc" id="L84">        } catch (Exception e) {</span>
+<span class="nc" id="L85">            logger.error(&quot;[VISA] Erro na autorização. Verifique: 1) Certificado mTLS 2) Credenciamento 3) BIN&quot;, e);</span>
+<span class="nc" id="L86">            return createErrorResponse(&quot;MTLS_OR_CONFIG_ERROR&quot;, </span>
+<span class="nc" id="L87">                &quot;Erro: Verifique certificado mTLS e credenciamento Visa Direct. &quot; + e.getMessage());</span>
+        }
+    }
+
+    @Override
+    public PaymentResponse capture(Gateway gateway, CaptureRequest request, Transacao transacao) {
+        // Visa Direct não tem conceito de captura separada
+        // Push Funds Transaction já é final
+<span class="nc" id="L95">        logger.info(&quot;[VISA] Visa Direct não requer captura separada. Transação já é final.&quot;);</span>
+        
+<span class="nc" id="L97">        PaymentResponse response = new PaymentResponse();</span>
+<span class="nc" id="L98">        response.setSuccess(true);</span>
+<span class="nc" id="L99">        response.setStatus(&quot;CAPTURED&quot;);</span>
+<span class="nc" id="L100">        response.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L101">        response.setGatewayTransactionId(transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L102">        response.setTimestamp(ZonedDateTime.now());</span>
+        
+<span class="nc" id="L104">        return response;</span>
+    }
+
+    @Override
+    public PaymentResponse voidTransaction(Gateway gateway, VoidRequest request, Transacao transacao) {
+<span class="nc" id="L109">        logger.info(&quot;[VISA] Iniciando Reverse Funds Transaction - TransactionID: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            if (transacao.getGatewayTransactionId() == null) {</span>
+<span class="nc" id="L113">                return createErrorResponse(&quot;INVALID_TRANSACTION&quot;, &quot;Transaction Identifier não encontrado&quot;);</span>
+            }
+            
+<span class="nc" id="L116">            Map&lt;String, Object&gt; payload = buildReverseFundsPayload(request, transacao, gateway);</span>
+<span class="nc" id="L117">            HttpHeaders headers = buildHeaders(gateway);</span>
+            
+<span class="nc" id="L119">            String url = getBaseUrl(gateway) + &quot;/fundstransfer/v1/reversefundstransactions&quot;;</span>
+<span class="nc" id="L120">            HttpEntity&lt;Map&lt;String, Object&gt;&gt; entity = new HttpEntity&lt;&gt;(payload, headers);</span>
+            
+<span class="nc" id="L122">            logger.debug(&quot;[VISA] Enviando Reverse Funds para: {}&quot;, url);</span>
+            
+<span class="nc" id="L124">            ResponseEntity&lt;Map&gt; response = restTemplate.exchange(</span>
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            if (response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L132">                PaymentResponse paymentResponse = new PaymentResponse();</span>
+<span class="nc" id="L133">                paymentResponse.setSuccess(true);</span>
+<span class="nc" id="L134">                paymentResponse.setStatus(&quot;VOIDED&quot;);</span>
+<span class="nc" id="L135">                paymentResponse.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L136">                paymentResponse.setGatewayTransactionId(transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L137">                paymentResponse.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="nc" id="L139">                logger.info(&quot;[VISA] Estorno bem-sucedido&quot;);</span>
+<span class="nc" id="L140">                return paymentResponse;</span>
+            } else {
+<span class="nc" id="L142">                return createErrorResponse(&quot;VOID_FAILED&quot;, &quot;Falha no estorno&quot;);</span>
+            }
+
+<span class="nc" id="L145">        } catch (Exception e) {</span>
+<span class="nc" id="L146">            logger.error(&quot;[VISA] Erro no estorno&quot;, e);</span>
+<span class="nc" id="L147">            return createErrorResponse(&quot;GATEWAY_ERROR&quot;, e.getMessage());</span>
+        }
+    }
+
+    @Override
+    public boolean healthCheck(Gateway gateway) {
+<span class="nc" id="L153">        logger.warn(&quot;[VISA] Health check requer mTLS configurado&quot;);</span>
+        // Visa não tem endpoint de health check público
+        // Verificamos apenas se as configurações básicas estão presentes
+<span class="nc bnc" id="L156" title="All 4 branches missed.">        return gateway.getApiKey() != null &amp;&amp; gateway.getMerchantId() != null;</span>
+    }
+
+    @Override
+    public String getGatewayCode() {
+<span class="nc" id="L161">        return GATEWAY_CODE;</span>
+    }
+
+    // ========== MÉTODOS PRIVADOS ==========
+
+    private void validateRequest(AuthorizationRequest request, Gateway gateway) {
+<span class="nc bnc" id="L167" title="All 4 branches missed.">        if (request.getAmount() == null || request.getAmount() &lt;= 0) {</span>
+<span class="nc" id="L168">            throw new IllegalArgumentException(&quot;amount inválido&quot;);</span>
+        }
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (gateway.getMerchantId() == null) {</span>
+<span class="nc" id="L171">            throw new IllegalArgumentException(&quot;acquiringBin (MerchantId) obrigatório&quot;);</span>
+        }
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (gateway.getApiKey() == null) {</span>
+<span class="nc" id="L174">            throw new IllegalArgumentException(&quot;userId/password (ApiKey) obrigatório para Basic Auth&quot;);</span>
+        }
+<span class="nc" id="L176">    }</span>
+
+    private Map&lt;String, Object&gt; buildPushFundsPayload(AuthorizationRequest request, Transacao transacao, Gateway gateway) {
+<span class="nc" id="L179">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+        // acquirerCountryCode (3 dígitos) - País do BIN
+<span class="nc" id="L182">        payload.put(&quot;acquirerCountryCode&quot;, &quot;076&quot;); // Brasil</span>
+        
+        // acquiringBin - BIN do programa Visa Direct
+<span class="nc" id="L185">        payload.put(&quot;acquiringBin&quot;, gateway.getMerchantId());</span>
+        
+        // amount (double, max 3 decimais)
+<span class="nc" id="L188">        payload.put(&quot;amount&quot;, request.getAmount());</span>
+        
+        // businessApplicationId (2 caracteres)
+        // AA = Account-to-Account, PP = Person-to-Person, etc
+<span class="nc" id="L192">        payload.put(&quot;businessApplicationId&quot;, &quot;AA&quot;);</span>
+        
+        // cardAcceptor
+<span class="nc" id="L195">        Map&lt;String, Object&gt; cardAcceptor = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L196">        cardAcceptor.put(&quot;idCode&quot;, &quot;PIP&quot; + gateway.getMerchantId());</span>
+<span class="nc" id="L197">        cardAcceptor.put(&quot;name&quot;, &quot;Payment Integration Platform&quot;);</span>
+<span class="nc" id="L198">        cardAcceptor.put(&quot;terminalId&quot;, &quot;PIP00001&quot;);</span>
+        
+<span class="nc" id="L200">        Map&lt;String, Object&gt; address = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L201">        address.put(&quot;country&quot;, &quot;BRA&quot;);</span>
+<span class="nc" id="L202">        address.put(&quot;state&quot;, &quot;SP&quot;);</span>
+<span class="nc" id="L203">        address.put(&quot;zipCode&quot;, &quot;01310100&quot;);</span>
+<span class="nc" id="L204">        cardAcceptor.put(&quot;address&quot;, address);</span>
+        
+<span class="nc" id="L206">        payload.put(&quot;cardAcceptor&quot;, cardAcceptor);</span>
+        
+        // localTransactionDateTime (ISO 8601)
+<span class="nc" id="L209">        payload.put(&quot;localTransactionDateTime&quot;, </span>
+<span class="nc" id="L210">            ZonedDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));</span>
+        
+        // merchantCategoryCode (MCC)
+<span class="nc" id="L213">        payload.put(&quot;merchantCategoryCode&quot;, &quot;6012&quot;); // Financial institutions</span>
+        
+        // pointOfServiceData
+<span class="nc" id="L216">        Map&lt;String, Object&gt; posData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L217">        posData.put(&quot;panEntryMode&quot;, &quot;07&quot;); // Ecommerce</span>
+<span class="nc" id="L218">        posData.put(&quot;posConditionCode&quot;, &quot;00&quot;); // Normal</span>
+<span class="nc" id="L219">        payload.put(&quot;pointOfServiceData&quot;, posData);</span>
+        
+        // recipientPrimaryAccountNumber - Cartão destinatário
+<span class="nc" id="L222">        payload.put(&quot;recipientPrimaryAccountNumber&quot;, request.getCardToken());</span>
+        
+        // retrievalReferenceNumber (ydddhhnnnnnn)
+<span class="nc" id="L225">        payload.put(&quot;retrievalReferenceNumber&quot;, generateRRN());</span>
+        
+        // senderAccountNumber - Conta origem
+<span class="nc" id="L228">        payload.put(&quot;senderAccountNumber&quot;, gateway.getApiKey());</span>
+        
+        // senderCurrencyCode
+<span class="nc" id="L231">        payload.put(&quot;senderCurrencyCode&quot;, &quot;BRL&quot;);</span>
+        
+        // systemsTraceAuditNumber (único)
+<span class="nc" id="L234">        payload.put(&quot;systemsTraceAuditNumber&quot;, generateSTAN());</span>
+        
+<span class="nc" id="L236">        logger.debug(&quot;[VISA] Push Funds payload construído&quot;);</span>
+        
+<span class="nc" id="L238">        return payload;</span>
+    }
+
+    private Map&lt;String, Object&gt; buildReverseFundsPayload(VoidRequest request, Transacao transacao, Gateway gateway) {
+<span class="nc" id="L242">        Map&lt;String, Object&gt; payload = new HashMap&lt;&gt;();</span>
+        
+        // Mesmos campos do Push, mas com transactionIdentifier da transação original
+<span class="nc" id="L245">        payload.put(&quot;acquirerCountryCode&quot;, &quot;076&quot;);</span>
+<span class="nc" id="L246">        payload.put(&quot;acquiringBin&quot;, gateway.getMerchantId());</span>
+<span class="nc" id="L247">        payload.put(&quot;amount&quot;, transacao.getValor());</span>
+<span class="nc" id="L248">        payload.put(&quot;businessApplicationId&quot;, &quot;AA&quot;);</span>
+<span class="nc" id="L249">        payload.put(&quot;transactionIdentifier&quot;, transacao.getGatewayTransactionId());</span>
+<span class="nc" id="L250">        payload.put(&quot;localTransactionDateTime&quot;, </span>
+<span class="nc" id="L251">            ZonedDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));</span>
+<span class="nc" id="L252">        payload.put(&quot;retrievalReferenceNumber&quot;, generateRRN());</span>
+<span class="nc" id="L253">        payload.put(&quot;systemsTraceAuditNumber&quot;, generateSTAN());</span>
+        
+<span class="nc" id="L255">        return payload;</span>
+    }
+
+    private HttpHeaders buildHeaders(Gateway gateway) {
+<span class="nc" id="L259">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L260">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+        
+        // Basic Authentication (userId:password em Base64)
+        // gateway.getApiKey() deve conter &quot;userId:password&quot;
+<span class="nc" id="L264">        String auth = gateway.getApiKey();</span>
+<span class="nc" id="L265">        String encodedAuth = java.util.Base64.getEncoder().encodeToString(auth.getBytes());</span>
+<span class="nc" id="L266">        headers.set(&quot;Authorization&quot;, &quot;Basic &quot; + encodedAuth);</span>
+        
+<span class="nc" id="L268">        return headers;</span>
+    }
+
+    private String getBaseUrl(Gateway gateway) {
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        return gateway.getAmbiente().toString().equals(&quot;SANDBOX&quot;) ? SANDBOX_URL : PRODUCTION_URL;</span>
+    }
+
+    private PaymentResponse processPushFundsResponse(ResponseEntity&lt;Map&gt; response, Transacao transacao) {
+<span class="nc bnc" id="L276" title="All 2 branches missed.">        if (response.getStatusCode() == HttpStatus.OK) {</span>
+<span class="nc" id="L277">            Map&lt;String, Object&gt; responseBody = response.getBody();</span>
+
+<span class="nc" id="L279">            PaymentResponse paymentResponse = new PaymentResponse();</span>
+            
+<span class="nc" id="L281">            String actionCode = (String) responseBody.get(&quot;actionCode&quot;);</span>
+<span class="nc" id="L282">            boolean isApproved = &quot;00&quot;.equals(actionCode);</span>
+            
+<span class="nc" id="L284">            paymentResponse.setSuccess(isApproved);</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">            paymentResponse.setStatus(isApproved ? &quot;AUTHORIZED&quot; : &quot;DENIED&quot;);</span>
+<span class="nc" id="L286">            paymentResponse.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L287">            paymentResponse.setGatewayTransactionId(String.valueOf(responseBody.get(&quot;transactionIdentifier&quot;)));</span>
+<span class="nc" id="L288">            paymentResponse.setAuthorizationCode((String) responseBody.get(&quot;approvalCode&quot;));</span>
+<span class="nc" id="L289">            paymentResponse.setTimestamp(ZonedDateTime.now());</span>
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            if (!isApproved) {</span>
+<span class="nc" id="L292">                paymentResponse.setErrorMessage(&quot;Action Code: &quot; + actionCode);</span>
+            }
+
+<span class="nc" id="L295">            logger.info(&quot;[VISA] Push Funds processado: {} - Action Code: {}&quot;, </span>
+<span class="nc" id="L296">                paymentResponse.getGatewayTransactionId(), actionCode);</span>
+            
+<span class="nc" id="L298">            return paymentResponse;</span>
+        } else {
+<span class="nc" id="L300">            return createErrorResponse(&quot;PUSH_FUNDS_FAILED&quot;, &quot;Falha no Push Funds&quot;);</span>
+        }
+    }
+
+    private String generateRRN() {
+        // ydddhhnnnnnn format
+<span class="nc" id="L306">        ZonedDateTime now = ZonedDateTime.now();</span>
+<span class="nc" id="L307">        int year = now.getYear() % 10;</span>
+<span class="nc" id="L308">        int dayOfYear = now.getDayOfYear();</span>
+<span class="nc" id="L309">        int hour = now.getHour();</span>
+<span class="nc" id="L310">        int random = (int)(Math.random() * 1000000);</span>
+        
+<span class="nc" id="L312">        return String.format(&quot;%d%03d%02d%06d&quot;, year, dayOfYear, hour, random);</span>
+    }
+
+    private int generateSTAN() {
+<span class="nc" id="L316">        return (int)(Math.random() * 1000000);</span>
+    }
+
+    private PaymentResponse createErrorResponse(String errorCode, String errorMessage) {
+<span class="nc" id="L320">        PaymentResponse response = new PaymentResponse();</span>
+<span class="nc" id="L321">        response.setSuccess(false);</span>
+<span class="nc" id="L322">        response.setErrorCode(errorCode);</span>
+<span class="nc" id="L323">        response.setErrorMessage(errorMessage);</span>
+<span class="nc" id="L324">        response.setTimestamp(ZonedDateTime.now());</span>
+        
+<span class="nc" id="L326">        logger.warn(&quot;[VISA] Erro: {} - {}&quot;, errorCode, errorMessage);</span>
+        
+<span class="nc" id="L328">        return response;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

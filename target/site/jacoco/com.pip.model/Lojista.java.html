@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Lojista.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">Lojista.java</span></div><h1>Lojista.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa um lojista (cliente da plataforma PIP)
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Entity
+@Table(name = &quot;lojista&quot;, indexes = {
+    @Index(name = &quot;idx_lojista_email&quot;, columnList = &quot;email&quot;),
+    @Index(name = &quot;idx_lojista_cnpj&quot;, columnList = &quot;cnpj&quot;),
+    @Index(name = &quot;idx_lojista_status&quot;, columnList = &quot;status&quot;)
+})
+public class Lojista {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @Column(name = &quot;nome_fantasia&quot;, nullable = false, length = 200)
+    @NotBlank(message = &quot;Nome fantasia é obrigatório&quot;)
+    @Size(max = 200, message = &quot;Nome fantasia deve ter no máximo 200 caracteres&quot;)
+    private String nomeFantasia;
+
+    @Column(name = &quot;razao_social&quot;, nullable = false, length = 200)
+    @NotBlank(message = &quot;Razão social é obrigatória&quot;)
+    @Size(max = 200, message = &quot;Razão social deve ter no máximo 200 caracteres&quot;)
+    private String razaoSocial;
+
+    @Column(name = &quot;cnpj&quot;, nullable = false, unique = true, length = 14)
+    @NotBlank(message = &quot;CNPJ é obrigatório&quot;)
+    @Size(min = 14, max = 14, message = &quot;CNPJ deve ter exatamente 14 dígitos&quot;)
+    private String cnpj;
+
+    @Column(name = &quot;email&quot;, nullable = false, unique = true, length = 100)
+    @NotBlank(message = &quot;Email é obrigatório&quot;)
+    @Email(message = &quot;Email deve ter formato válido&quot;)
+    @Size(max = 100, message = &quot;Email deve ter no máximo 100 caracteres&quot;)
+    private String email;
+
+    @Column(name = &quot;telefone&quot;, length = 20)
+    @Size(max = 20, message = &quot;Telefone deve ter no máximo 20 caracteres&quot;)
+    private String telefone;
+
+    @Column(name = &quot;endereco&quot;, length = 500)
+    @Size(max = 500, message = &quot;Endereço deve ter no máximo 500 caracteres&quot;)
+    private String endereco;
+
+    @Column(name = &quot;status&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private LojistaStatus status;
+
+    @Column(name = &quot;plano&quot;, nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private PlanoLojista plano;
+
+    @Column(name = &quot;webhook_url&quot;, length = 500)
+    @Size(max = 500, message = &quot;URL do webhook deve ter no máximo 500 caracteres&quot;)
+    private String webhookUrl;
+
+    @Column(name = &quot;webhook_secret&quot;, length = 100)
+    @Size(max = 100, message = &quot;Secret do webhook deve ter no máximo 100 caracteres&quot;)
+    private String webhookSecret;
+
+    @Column(name = &quot;limite_mensal&quot;, nullable = false)
+    private Long limiteMensal; // Em centavos
+
+<span class="fc" id="L75">    @Column(name = &quot;volume_processado&quot;, nullable = false)</span>
+<span class="fc" id="L76">    private Long volumeProcessado = 0L; // Em centavos</span>
+
+    @Column(name = &quot;taxa_percentual&quot;, nullable = false)
+    private Integer taxaPercentual; // Em basis points (ex: 250 = 2.5%)
+
+    @Column(name = &quot;taxa_fixa&quot;, nullable = false)
+    private Long taxaFixa; // Em centavos
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private ZonedDateTime createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    private ZonedDateTime updatedAt;
+
+    @Column(name = &quot;activated_at&quot;)
+    private ZonedDateTime activatedAt;
+
+    // Construtores
+<span class="fc" id="L94">    public Lojista() {</span>
+<span class="fc" id="L95">        this.createdAt = ZonedDateTime.now();</span>
+<span class="fc" id="L96">        this.status = LojistaStatus.PENDING;</span>
+<span class="fc" id="L97">        this.volumeProcessado = 0L;</span>
+<span class="fc" id="L98">    }</span>
+
+    public Lojista(String nomeFantasia, String razaoSocial, String cnpj, String email, PlanoLojista plano) {
+<span class="nc" id="L101">        this();</span>
+<span class="nc" id="L102">        this.nomeFantasia = nomeFantasia;</span>
+<span class="nc" id="L103">        this.razaoSocial = razaoSocial;</span>
+<span class="nc" id="L104">        this.cnpj = cnpj;</span>
+<span class="nc" id="L105">        this.email = email;</span>
+<span class="nc" id="L106">        this.plano = plano;</span>
+<span class="nc" id="L107">        this.limiteMensal = plano.getLimitePadrao();</span>
+<span class="nc" id="L108">        this.taxaPercentual = plano.getTaxaPercentual();</span>
+<span class="nc" id="L109">        this.taxaFixa = plano.getTaxaFixa();</span>
+<span class="nc" id="L110">    }</span>
+
+    // Métodos de negócio
+    public void ativar() {
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (this.status != LojistaStatus.PENDING) {</span>
+<span class="nc" id="L115">            throw new IllegalStateException(&quot;Lojista só pode ser ativado se estiver pendente&quot;);</span>
+        }
+<span class="nc" id="L117">        this.status = LojistaStatus.ACTIVE;</span>
+<span class="nc" id="L118">        this.activatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L119">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L120">    }</span>
+
+    public void suspender() {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (this.status != LojistaStatus.ACTIVE) {</span>
+<span class="nc" id="L124">            throw new IllegalStateException(&quot;Lojista só pode ser suspenso se estiver ativo&quot;);</span>
+        }
+<span class="nc" id="L126">        this.status = LojistaStatus.SUSPENDED;</span>
+<span class="nc" id="L127">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L128">    }</span>
+
+    public void bloquear() {
+<span class="nc" id="L131">        this.status = LojistaStatus.BLOCKED;</span>
+<span class="nc" id="L132">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L133">    }</span>
+
+    public boolean podeProcessarTransacao(Long valor) {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (this.status != LojistaStatus.ACTIVE) {</span>
+<span class="nc" id="L137">            return false;</span>
+        }
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        return (this.volumeProcessado + valor) &lt;= this.limiteMensal;</span>
+    }
+
+    public void adicionarVolumeProcessado(Long valor) {
+<span class="nc" id="L143">        this.volumeProcessado += valor;</span>
+<span class="nc" id="L144">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L145">    }</span>
+
+    public void resetarVolumeProcessado() {
+<span class="nc" id="L148">        this.volumeProcessado = 0L;</span>
+<span class="nc" id="L149">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L150">    }</span>
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="fc" id="L154">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="nc" id="L158">        this.id = id;</span>
+<span class="nc" id="L159">    }</span>
+
+    public String getNomeFantasia() {
+<span class="nc" id="L162">        return nomeFantasia;</span>
+    }
+
+    public void setNomeFantasia(String nomeFantasia) {
+<span class="fc" id="L166">        this.nomeFantasia = nomeFantasia;</span>
+<span class="fc" id="L167">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L168">    }</span>
+
+    public String getRazaoSocial() {
+<span class="nc" id="L171">        return razaoSocial;</span>
+    }
+
+    public void setRazaoSocial(String razaoSocial) {
+<span class="fc" id="L175">        this.razaoSocial = razaoSocial;</span>
+<span class="fc" id="L176">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L177">    }</span>
+
+    public String getCnpj() {
+<span class="nc" id="L180">        return cnpj;</span>
+    }
+
+    public void setCnpj(String cnpj) {
+<span class="fc" id="L184">        this.cnpj = cnpj;</span>
+<span class="fc" id="L185">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L186">    }</span>
+
+    public String getEmail() {
+<span class="nc" id="L189">        return email;</span>
+    }
+
+    public void setEmail(String email) {
+<span class="fc" id="L193">        this.email = email;</span>
+<span class="fc" id="L194">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L195">    }</span>
+
+    public String getTelefone() {
+<span class="nc" id="L198">        return telefone;</span>
+    }
+
+    public void setTelefone(String telefone) {
+<span class="nc" id="L202">        this.telefone = telefone;</span>
+<span class="nc" id="L203">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L204">    }</span>
+
+    public String getEndereco() {
+<span class="nc" id="L207">        return endereco;</span>
+    }
+
+    public void setEndereco(String endereco) {
+<span class="nc" id="L211">        this.endereco = endereco;</span>
+<span class="nc" id="L212">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L213">    }</span>
+
+    public LojistaStatus getStatus() {
+<span class="nc" id="L216">        return status;</span>
+    }
+
+    public void setStatus(LojistaStatus status) {
+<span class="nc" id="L220">        this.status = status;</span>
+<span class="nc" id="L221">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L222">    }</span>
+
+    public PlanoLojista getPlano() {
+<span class="nc" id="L225">        return plano;</span>
+    }
+
+    public void setPlano(PlanoLojista plano) {
+<span class="fc" id="L229">        this.plano = plano;</span>
+<span class="fc" id="L230">        this.limiteMensal = plano.getLimitePadrao();</span>
+<span class="fc" id="L231">        this.taxaPercentual = plano.getTaxaPercentual();</span>
+<span class="fc" id="L232">        this.taxaFixa = plano.getTaxaFixa();</span>
+<span class="fc" id="L233">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L234">    }</span>
+
+    public String getWebhookUrl() {
+<span class="fc" id="L237">        return webhookUrl;</span>
+    }
+
+    public void setWebhookUrl(String webhookUrl) {
+<span class="fc" id="L241">        this.webhookUrl = webhookUrl;</span>
+<span class="fc" id="L242">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L243">    }</span>
+
+    public String getWebhookSecret() {
+<span class="fc" id="L246">        return webhookSecret;</span>
+    }
+
+    public void setWebhookSecret(String webhookSecret) {
+<span class="fc" id="L250">        this.webhookSecret = webhookSecret;</span>
+<span class="fc" id="L251">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="fc" id="L252">    }</span>
+
+    public Long getLimiteMensal() {
+<span class="nc" id="L255">        return limiteMensal;</span>
+    }
+
+    public void setLimiteMensal(Long limiteMensal) {
+<span class="nc" id="L259">        this.limiteMensal = limiteMensal;</span>
+<span class="nc" id="L260">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L261">    }</span>
+
+    public Long getVolumeProcessado() {
+<span class="nc" id="L264">        return volumeProcessado;</span>
+    }
+
+    public void setVolumeProcessado(Long volumeProcessado) {
+<span class="nc" id="L268">        this.volumeProcessado = volumeProcessado;</span>
+<span class="nc" id="L269">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L270">    }</span>
+
+    public Integer getTaxaPercentual() {
+<span class="nc" id="L273">        return taxaPercentual;</span>
+    }
+
+    public void setTaxaPercentual(Integer taxaPercentual) {
+<span class="nc" id="L277">        this.taxaPercentual = taxaPercentual;</span>
+<span class="nc" id="L278">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L279">    }</span>
+
+    public Long getTaxaFixa() {
+<span class="nc" id="L282">        return taxaFixa;</span>
+    }
+
+    public void setTaxaFixa(Long taxaFixa) {
+<span class="nc" id="L286">        this.taxaFixa = taxaFixa;</span>
+<span class="nc" id="L287">        this.updatedAt = ZonedDateTime.now();</span>
+<span class="nc" id="L288">    }</span>
+
+    public ZonedDateTime getCreatedAt() {
+<span class="nc" id="L291">        return createdAt;</span>
+    }
+
+    public void setCreatedAt(ZonedDateTime createdAt) {
+<span class="nc" id="L295">        this.createdAt = createdAt;</span>
+<span class="nc" id="L296">    }</span>
+
+    public ZonedDateTime getUpdatedAt() {
+<span class="nc" id="L299">        return updatedAt;</span>
+    }
+
+    public void setUpdatedAt(ZonedDateTime updatedAt) {
+<span class="nc" id="L303">        this.updatedAt = updatedAt;</span>
+<span class="nc" id="L304">    }</span>
+
+    public ZonedDateTime getActivatedAt() {
+<span class="nc" id="L307">        return activatedAt;</span>
+    }
+
+    public void setActivatedAt(ZonedDateTime activatedAt) {
+<span class="nc" id="L311">        this.activatedAt = activatedAt;</span>
+<span class="nc" id="L312">    }</span>
+}
+
+/**
+ * Enum para status do lojista
+ */
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

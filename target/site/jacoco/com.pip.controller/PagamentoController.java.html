@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagamentoController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.controller</a> &gt; <span class="el_source">PagamentoController.java</span></div><h1>PagamentoController.java</h1><pre class="source lang-java linenums">package com.pip.controller;
+
+import com.pip.dto.AuthorizationRequest;
+import com.pip.dto.CaptureRequest;
+import com.pip.dto.VoidRequest;
+import com.pip.dto.PaymentResponse;
+import com.pip.model.Lojista;
+import com.pip.model.Transacao;
+import com.pip.model.TransactionStatus;
+import com.pip.service.PagamentoService;
+import com.pip.repository.LojistaRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Controller responsável pelos endpoints da API de pagamentos
+ * 
+ * Implementa todos os endpoints do ciclo de vida de pagamentos:
+ * - POST /authorize: Autorização de pagamento
+ * - POST /{id}/capture: Captura de pagamento
+ * - POST /{id}/void: Cancelamento de pagamento
+ * - GET /{id}: Consulta de transação por ID
+ * - GET /: Lista de transações com filtros
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@RestController
+@RequestMapping(&quot;/api/payments&quot;)
+@Tag(name = &quot;Pagamentos&quot;, description = &quot;Operações relacionadas ao ciclo de vida de um pagamento&quot;)
+<span class="nc" id="L46">public class PagamentoController {</span>
+
+<span class="nc" id="L48">    private static final Logger logger = LoggerFactory.getLogger(PagamentoController.class);</span>
+
+    @Autowired
+    private PagamentoService pagamentoService;
+
+    @Autowired
+    private LojistaRepository lojistaRepository;
+
+    /**
+     * Autoriza um novo pagamento
+     */
+    @PostMapping(&quot;/authorize&quot;)
+    @Operation(summary = &quot;Autoriza um novo pagamento&quot;, 
+               description = &quot;Submete uma transação para autorização junto ao gateway de pagamento selecionado automaticamente&quot;)
+    public ResponseEntity&lt;PaymentResponse&gt; autorizarPagamento(
+            @Valid @RequestBody AuthorizationRequest request,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L66">        logger.info(&quot;Recebida requisição de autorização - Valor: {} {}&quot;, </span>
+<span class="nc" id="L67">                   request.getAmount(), request.getCurrency());</span>
+        
+        try {
+            // Buscar lojista pela API Key
+<span class="nc" id="L71">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L72">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Processar autorização
+<span class="nc" id="L75">            PaymentResponse response = pagamentoService.autorizarPagamento(request, lojista);</span>
+            
+<span class="nc" id="L77">            logger.info(&quot;Autorização processada - Transaction ID: {}, Status: {}&quot;, </span>
+<span class="nc" id="L78">                       response.getTransactionId(), response.getStatus());</span>
+            
+<span class="nc bnc" id="L80" title="All 2 branches missed.">            return ResponseEntity.status(response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L81">                .body(response);</span>
+                
+<span class="nc" id="L83">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L84">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L85">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L86">                .body(createErrorResponse(&quot;VALIDATION_ERROR&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L88">        } catch (Exception e) {</span>
+<span class="nc" id="L89">            logger.error(&quot;Erro interno no processamento&quot;, e);</span>
+<span class="nc" id="L90">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L91">                .body(createErrorResponse(&quot;INTERNAL_ERROR&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Captura um pagamento autorizado
+     */
+    @PostMapping(&quot;/{transactionId}/capture&quot;)
+    @Operation(summary = &quot;Captura um pagamento autorizado&quot;, 
+               description = &quot;Efetiva a cobrança de um pagamento que foi previamente autorizado&quot;)
+    public ResponseEntity&lt;PaymentResponse&gt; capturarPagamento(
+            @PathVariable String transactionId, 
+            @Valid @RequestBody CaptureRequest request,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L106">        logger.info(&quot;Requisição de captura recebida para transação: {}, Valor: {}&quot;, </span>
+<span class="nc" id="L107">                   transactionId, request.getAmount());</span>
+        
+        try {
+            // Validar API Key
+<span class="nc" id="L111">            lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L112">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Processar captura
+<span class="nc" id="L115">            PaymentResponse response = pagamentoService.capturarPagamento(transactionId, request);</span>
+            
+<span class="nc" id="L117">            logger.info(&quot;Captura processada com sucesso - Transaction ID: {}&quot;, transactionId);</span>
+            
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            return ResponseEntity.status(response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L120">                .body(response);</span>
+                
+<span class="nc" id="L122">        } catch (IllegalArgumentException | IllegalStateException e) {</span>
+<span class="nc" id="L123">            logger.warn(&quot;Erro ao capturar: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L124">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L125">                .body(createErrorResponse(&quot;CAPTURE_ERROR&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L127">        } catch (Exception e) {</span>
+<span class="nc" id="L128">            logger.error(&quot;Erro interno ao capturar&quot;, e);</span>
+<span class="nc" id="L129">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L130">                .body(createErrorResponse(&quot;INTERNAL_ERROR&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Cancela um pagamento autorizado
+     */
+    @PostMapping(&quot;/{transactionId}/void&quot;)
+    @Operation(summary = &quot;Cancela um pagamento autorizado&quot;, 
+               description = &quot;Cancela um pagamento que foi previamente autorizado ou capturado&quot;)
+    public ResponseEntity&lt;PaymentResponse&gt; cancelarPagamento(
+            @PathVariable String transactionId, 
+            @Valid @RequestBody VoidRequest request,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L145">        logger.info(&quot;Requisição de cancelamento recebida para transação: {}&quot;, transactionId);</span>
+        
+        try {
+            // Validar API Key
+<span class="nc" id="L149">            lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L150">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Processar cancelamento
+<span class="nc" id="L153">            PaymentResponse response = pagamentoService.cancelarPagamento(transactionId, request);</span>
+            
+<span class="nc" id="L155">            logger.info(&quot;Cancelamento processado com sucesso - Transaction ID: {}&quot;, transactionId);</span>
+            
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            return ResponseEntity.status(response.isSuccess() ? HttpStatus.OK : HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L158">                .body(response);</span>
+                
+<span class="nc" id="L160">        } catch (IllegalArgumentException | IllegalStateException e) {</span>
+<span class="nc" id="L161">            logger.warn(&quot;Erro ao cancelar: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L162">            return ResponseEntity.status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L163">                .body(createErrorResponse(&quot;VOID_ERROR&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L165">        } catch (Exception e) {</span>
+<span class="nc" id="L166">            logger.error(&quot;Erro interno ao cancelar&quot;, e);</span>
+<span class="nc" id="L167">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L168">                .body(createErrorResponse(&quot;INTERNAL_ERROR&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Consulta uma transação pelo ID
+     */
+    @GetMapping(&quot;/{transactionId}&quot;)
+    @Operation(summary = &quot;Consulta uma transação&quot;, 
+               description = &quot;Retorna os detalhes de uma transação específica&quot;)
+    public ResponseEntity&lt;PaymentResponse&gt; consultarPagamento(
+            @PathVariable String transactionId,
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L182">        logger.info(&quot;Requisição de consulta recebida para transação: {}&quot;, transactionId);</span>
+        
+        try {
+            // Validar API Key
+<span class="nc" id="L186">            lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L187">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Consultar transação
+<span class="nc" id="L190">            PaymentResponse response = pagamentoService.consultarPagamento(transactionId);</span>
+            
+<span class="nc" id="L192">            return ResponseEntity.ok(response);</span>
+                
+<span class="nc" id="L194">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L195">            logger.warn(&quot;Transação não encontrada: {}&quot;, transactionId);</span>
+<span class="nc" id="L196">            return ResponseEntity.status(HttpStatus.NOT_FOUND)</span>
+<span class="nc" id="L197">                .body(createErrorResponse(&quot;NOT_FOUND&quot;, e.getMessage()));</span>
+                
+<span class="nc" id="L199">        } catch (Exception e) {</span>
+<span class="nc" id="L200">            logger.error(&quot;Erro interno ao consultar&quot;, e);</span>
+<span class="nc" id="L201">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L202">                .body(createErrorResponse(&quot;INTERNAL_ERROR&quot;, &quot;Erro interno do servidor&quot;));</span>
+        }
+    }
+
+    /**
+     * Lista transações com filtros
+     */
+    @GetMapping
+    @Operation(summary = &quot;Lista transações com filtros&quot;, 
+               description = &quot;Retorna uma lista paginada de transações com filtros opcionais&quot;)
+    public ResponseEntity&lt;Page&lt;Transacao&gt;&gt; listarTransacoes(
+            @Parameter(description = &quot;Status da transação&quot;)
+            @RequestParam(required = false) TransactionStatus status,
+            
+            @Parameter(description = &quot;Data inicial (formato: ISO 8601)&quot;)
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime dataInicio,
+            
+            @Parameter(description = &quot;Data final (formato: ISO 8601)&quot;)
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime dataFim,
+            
+            @Parameter(description = &quot;Número da página (inicia em 0)&quot;)
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            
+            @Parameter(description = &quot;Tamanho da página&quot;)
+            @RequestParam(defaultValue = &quot;20&quot;) int size,
+            
+            @Parameter(description = &quot;Campo para ordenação&quot;)
+            @RequestParam(defaultValue = &quot;createdAt&quot;) String sortBy,
+            
+            @Parameter(description = &quot;Direção da ordenação (ASC ou DESC)&quot;)
+            @RequestParam(defaultValue = &quot;DESC&quot;) Sort.Direction direction,
+            
+            @RequestHeader(&quot;X-Api-Key&quot;) String apiKey) {
+        
+<span class="nc" id="L236">        logger.info(&quot;Requisição de listagem de transações - Page: {}, Size: {}&quot;, page, size);</span>
+        
+        try {
+            // Buscar lojista pela API Key
+<span class="nc" id="L240">            Lojista lojista = lojistaRepository.findByApiKey(apiKey)</span>
+<span class="nc" id="L241">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;API Key inválida&quot;));</span>
+
+            // Criar paginação
+<span class="nc" id="L244">            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));</span>
+
+            // Listar transações
+<span class="nc" id="L247">            Page&lt;Transacao&gt; transacoes = pagamentoService.listarTransacoes(</span>
+<span class="nc" id="L248">                lojista.getId(), </span>
+                status, 
+                dataInicio, 
+                dataFim, 
+                pageable
+            );
+            
+<span class="nc" id="L255">            logger.info(&quot;Listagem concluída - Total: {}, Página: {}/{}&quot;, </span>
+<span class="nc" id="L256">                       transacoes.getTotalElements(), </span>
+<span class="nc" id="L257">                       transacoes.getNumber() + 1, </span>
+<span class="nc" id="L258">                       transacoes.getTotalPages());</span>
+            
+<span class="nc" id="L260">            return ResponseEntity.ok(transacoes);</span>
+                
+<span class="nc" id="L262">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L263">            logger.warn(&quot;Erro de validação: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L264">            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();</span>
+                
+<span class="nc" id="L266">        } catch (Exception e) {</span>
+<span class="nc" id="L267">            logger.error(&quot;Erro interno ao listar transações&quot;, e);</span>
+<span class="nc" id="L268">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();</span>
+        }
+    }
+
+    /**
+     * Cria resposta de erro padronizada
+     */
+    private PaymentResponse createErrorResponse(String errorCode, String errorMessage) {
+<span class="nc" id="L276">        PaymentResponse response = new PaymentResponse();</span>
+<span class="nc" id="L277">        response.setSuccess(false);</span>
+<span class="nc" id="L278">        response.setErrorCode(errorCode);</span>
+<span class="nc" id="L279">        response.setErrorMessage(errorMessage);</span>
+<span class="nc" id="L280">        response.setTimestamp(ZonedDateTime.now());</span>
+<span class="nc" id="L281">        return response;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

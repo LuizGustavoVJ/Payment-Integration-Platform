@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RedeWebhookController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.controller</a> &gt; <span class="el_source">RedeWebhookController.java</span></div><h1>RedeWebhookController.java</h1><pre class="source lang-java linenums">package com.pip.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pip.model.Transacao;
+import com.pip.model.TransactionStatus;
+import com.pip.repository.TransacaoRepository;
+import com.pip.service.WebhookService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Controller para receber webhooks da Rede
+ * 
+ * Documentação: https://developer.userede.com.br/e-rede#tag/Notificacoes
+ * 
+ * Eventos suportados:
+ * - AUTHORIZED - Transação autorizada
+ * - CAPTURED - Transação capturada
+ * - CANCELLED - Transação cancelada
+ * - DENIED - Transação negada
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@RestController
+@RequestMapping(&quot;/webhooks/rede&quot;)
+<span class="nc" id="L33">public class RedeWebhookController {</span>
+
+<span class="nc" id="L35">    private static final Logger logger = LoggerFactory.getLogger(RedeWebhookController.class);</span>
+
+    @Autowired
+    private TransacaoRepository transacaoRepository;
+
+    @Autowired
+    private WebhookService webhookService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @PostMapping
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; receiveWebhook(
+            @RequestHeader(value = &quot;X-Rede-Signature&quot;, required = false) String signature,
+            @RequestBody String payload) {
+
+<span class="nc" id="L51">        logger.info(&quot;[REDE WEBHOOK] Recebendo notificação&quot;);</span>
+
+        try {
+<span class="nc" id="L54">            Map&lt;String, Object&gt; webhookData = objectMapper.readValue(payload, Map.class);</span>
+<span class="nc" id="L55">            String tid = (String) webhookData.get(&quot;tid&quot;);</span>
+<span class="nc" id="L56">            String status = (String) webhookData.get(&quot;status&quot;);</span>
+
+<span class="nc" id="L58">            logger.info(&quot;[REDE WEBHOOK] TID: {} - Status: {}&quot;, tid, status);</span>
+
+<span class="nc" id="L60">            processRedeEvent(tid, status);</span>
+
+<span class="nc" id="L62">            return ResponseEntity.ok(Map.of(&quot;status&quot;, &quot;processed&quot;));</span>
+
+<span class="nc" id="L64">        } catch (Exception e) {</span>
+<span class="nc" id="L65">            logger.error(&quot;[REDE WEBHOOK] Erro ao processar webhook&quot;, e);</span>
+<span class="nc" id="L66">            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)</span>
+<span class="nc" id="L67">                .body(Map.of(&quot;error&quot;, &quot;Processing failed&quot;));</span>
+        }
+    }
+
+    private void processRedeEvent(String tid, String status) {
+<span class="nc" id="L72">        Optional&lt;Transacao&gt; transacaoOpt = transacaoRepository.findByGatewayTransactionId(tid);</span>
+        
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (!transacaoOpt.isPresent()) {</span>
+<span class="nc" id="L75">            logger.warn(&quot;[REDE WEBHOOK] Transação não encontrada: {}&quot;, tid);</span>
+<span class="nc" id="L76">            return;</span>
+        }
+        
+<span class="nc" id="L79">        Transacao transacao = transacaoOpt.get();</span>
+
+<span class="nc bnc" id="L81" title="All 5 branches missed.">        switch (status.toUpperCase()) {</span>
+            case &quot;AUTHORIZED&quot;:
+<span class="nc" id="L83">                transacao.setStatus(TransactionStatus.AUTHORIZED.toString());</span>
+<span class="nc" id="L84">                logger.info(&quot;[REDE WEBHOOK] Transação autorizada: {}&quot;, tid);</span>
+<span class="nc" id="L85">                break;</span>
+
+            case &quot;CAPTURED&quot;:
+<span class="nc" id="L88">                transacao.setStatus(TransactionStatus.CAPTURED.toString());</span>
+<span class="nc" id="L89">                logger.info(&quot;[REDE WEBHOOK] Transação capturada: {}&quot;, tid);</span>
+<span class="nc" id="L90">                break;</span>
+
+            case &quot;CANCELLED&quot;:
+<span class="nc" id="L93">                transacao.setStatus(TransactionStatus.VOIDED.toString());</span>
+<span class="nc" id="L94">                logger.info(&quot;[REDE WEBHOOK] Transação cancelada: {}&quot;, tid);</span>
+<span class="nc" id="L95">                break;</span>
+
+            case &quot;DENIED&quot;:
+<span class="nc" id="L98">                transacao.setStatus(TransactionStatus.DENIED.toString());</span>
+<span class="nc" id="L99">                logger.info(&quot;[REDE WEBHOOK] Transação negada: {}&quot;, tid);</span>
+<span class="nc" id="L100">                break;</span>
+
+            default:
+<span class="nc" id="L103">                logger.warn(&quot;[REDE WEBHOOK] Status desconhecido: {}&quot;, status);</span>
+<span class="nc" id="L104">                return;</span>
+        }
+
+<span class="nc" id="L107">        transacaoRepository.save(transacao);</span>
+<span class="nc" id="L108">        webhookService.notificarLojista(transacao);</span>
+<span class="nc" id="L109">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

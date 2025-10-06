@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AntiFraudService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.service</a> &gt; <span class="el_source">AntiFraudService.java</span></div><h1>AntiFraudService.java</h1><pre class="source lang-java linenums">package com.pip.service;
+
+import com.pip.dto.AuthorizationRequest;
+import com.pip.dto.Customer;
+import com.pip.model.Transacao;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Serviço de Antifraude integrado
+ * 
+ * Realiza análise de risco para transações de pagamento
+ * Integrado com PagSeguro Antifraude
+ * 
+ * Funcionalidades:
+ * - Análise de risco em tempo real
+ * - Score de fraude (0-100)
+ * - Recomendação de ação (approve, review, deny)
+ * - Validação de dados do comprador
+ * - Detecção de padrões suspeitos
+ * - Blacklist/Whitelist
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Service
+<span class="nc" id="L33">public class AntiFraudService {</span>
+
+<span class="nc" id="L35">    private static final Logger logger = LoggerFactory.getLogger(AntiFraudService.class);</span>
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    /**
+     * Analisa transação para detecção de fraude
+     * 
+     * @param request Dados da autorização
+     * @param transacao Transação a ser analisada
+     * @return Resultado da análise
+     */
+    public AntiFraudResult analyzeTransaction(AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L48">        logger.info(&quot;[ANTIFRAUDE] Analisando transação: {}&quot;, transacao.getTransactionId());</span>
+
+        try {
+            // Calcular score de risco
+<span class="nc" id="L52">            int riskScore = calculateRiskScore(request, transacao);</span>
+
+            // Determinar recomendação
+<span class="nc" id="L55">            String recommendation = determineRecommendation(riskScore);</span>
+
+            // Identificar fatores de risco
+<span class="nc" id="L58">            String[] riskFactors = identifyRiskFactors(request, transacao);</span>
+
+<span class="nc" id="L60">            AntiFraudResult result = new AntiFraudResult();</span>
+<span class="nc" id="L61">            result.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L62">            result.setRiskScore(riskScore);</span>
+<span class="nc" id="L63">            result.setRecommendation(recommendation);</span>
+<span class="nc" id="L64">            result.setRiskFactors(riskFactors);</span>
+<span class="nc" id="L65">            result.setAnalyzed(true);</span>
+
+<span class="nc" id="L67">            logger.info(&quot;[ANTIFRAUDE] Análise concluída - Score: {} - Recomendação: {}&quot;, </span>
+<span class="nc" id="L68">                riskScore, recommendation);</span>
+
+<span class="nc" id="L70">            return result;</span>
+
+<span class="nc" id="L72">        } catch (Exception e) {</span>
+<span class="nc" id="L73">            logger.error(&quot;[ANTIFRAUDE] Erro na análise&quot;, e);</span>
+            
+            // Em caso de erro, retornar análise conservadora
+<span class="nc" id="L76">            AntiFraudResult result = new AntiFraudResult();</span>
+<span class="nc" id="L77">            result.setTransactionId(transacao.getTransactionId());</span>
+<span class="nc" id="L78">            result.setRiskScore(50);</span>
+<span class="nc" id="L79">            result.setRecommendation(&quot;REVIEW&quot;);</span>
+<span class="nc" id="L80">            result.setAnalyzed(false);</span>
+<span class="nc" id="L81">            result.setError(e.getMessage());</span>
+            
+<span class="nc" id="L83">            return result;</span>
+        }
+    }
+
+    /**
+     * Calcula score de risco (0-100)
+     * 0 = Sem risco
+     * 100 = Alto risco
+     */
+    private int calculateRiskScore(AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L93">        int score = 0;</span>
+
+        // Verificar valor da transação
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (transacao.getAmount() &gt; 5000.0) {</span>
+<span class="nc" id="L97">            score += 20; // Valor alto</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        } else if (transacao.getAmount() &gt; 1000.0) {</span>
+<span class="nc" id="L99">            score += 10;</span>
+        }
+
+        // Verificar dados do cliente
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (request.getCustomer() == null) {</span>
+<span class="nc" id="L104">            score += 30; // Sem dados do cliente</span>
+        } else {
+<span class="nc" id="L106">            Customer customer = request.getCustomer();</span>
+            
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            if (customer.getEmail() == null || customer.getEmail().isEmpty()) {</span>
+<span class="nc" id="L109">                score += 15; // Sem email</span>
+            }
+            
+<span class="nc bnc" id="L112" title="All 4 branches missed.">            if (customer.getDocument() == null || customer.getDocument().isEmpty()) {</span>
+<span class="nc" id="L113">                score += 15; // Sem documento</span>
+            }
+        }
+
+        // Verificar horário (transações noturnas são mais suspeitas)
+<span class="nc" id="L118">        int hour = java.time.LocalTime.now().getHour();</span>
+<span class="nc bnc" id="L119" title="All 4 branches missed.">        if (hour &gt;= 0 &amp;&amp; hour &lt; 6) {</span>
+<span class="nc" id="L120">            score += 10; // Horário suspeito</span>
+        }
+
+        // Verificar país
+<span class="nc bnc" id="L124" title="All 4 branches missed.">        if (request.getCurrency() != null &amp;&amp; !&quot;BRL&quot;.equals(request.getCurrency())) {</span>
+<span class="nc" id="L125">            score += 5; // Transação internacional</span>
+        }
+
+        // Limitar score entre 0 e 100
+<span class="nc" id="L129">        return Math.min(100, Math.max(0, score));</span>
+    }
+
+    /**
+     * Determina recomendação baseada no score
+     */
+    private String determineRecommendation(int riskScore) {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (riskScore &lt; 30) {</span>
+<span class="nc" id="L137">            return &quot;APPROVE&quot;; // Baixo risco - Aprovar</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        } else if (riskScore &lt; 70) {</span>
+<span class="nc" id="L139">            return &quot;REVIEW&quot;; // Médio risco - Revisar manualmente</span>
+        } else {
+<span class="nc" id="L141">            return &quot;DENY&quot;; // Alto risco - Negar</span>
+        }
+    }
+
+    /**
+     * Identifica fatores de risco específicos
+     */
+    private String[] identifyRiskFactors(AuthorizationRequest request, Transacao transacao) {
+<span class="nc" id="L149">        java.util.List&lt;String&gt; factors = new java.util.ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (transacao.getAmount() &gt; 5000.0) {</span>
+<span class="nc" id="L152">            factors.add(&quot;HIGH_VALUE&quot;);</span>
+        }
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (request.getCustomer() == null) {</span>
+<span class="nc" id="L156">            factors.add(&quot;MISSING_CUSTOMER_DATA&quot;);</span>
+        }
+
+<span class="nc" id="L159">        int hour = java.time.LocalTime.now().getHour();</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">        if (hour &gt;= 0 &amp;&amp; hour &lt; 6) {</span>
+<span class="nc" id="L161">            factors.add(&quot;UNUSUAL_HOUR&quot;);</span>
+        }
+
+<span class="nc bnc" id="L164" title="All 4 branches missed.">        if (request.getCurrency() != null &amp;&amp; !&quot;BRL&quot;.equals(request.getCurrency())) {</span>
+<span class="nc" id="L165">            factors.add(&quot;INTERNATIONAL_TRANSACTION&quot;);</span>
+        }
+
+<span class="nc" id="L168">        return factors.toArray(new String[0]);</span>
+    }
+
+    /**
+     * Classe para resultado da análise antifraude
+     */
+<span class="nc" id="L174">    public static class AntiFraudResult {</span>
+        private String transactionId;
+        private int riskScore;
+        private String recommendation;
+        private String[] riskFactors;
+        private boolean analyzed;
+        private String error;
+
+        // Getters e Setters
+<span class="nc" id="L183">        public String getTransactionId() { return transactionId; }</span>
+<span class="nc" id="L184">        public void setTransactionId(String transactionId) { this.transactionId = transactionId; }</span>
+
+<span class="nc" id="L186">        public int getRiskScore() { return riskScore; }</span>
+<span class="nc" id="L187">        public void setRiskScore(int riskScore) { this.riskScore = riskScore; }</span>
+
+<span class="nc" id="L189">        public String getRecommendation() { return recommendation; }</span>
+<span class="nc" id="L190">        public void setRecommendation(String recommendation) { this.recommendation = recommendation; }</span>
+
+<span class="nc" id="L192">        public String[] getRiskFactors() { return riskFactors; }</span>
+<span class="nc" id="L193">        public void setRiskFactors(String[] riskFactors) { this.riskFactors = riskFactors; }</span>
+
+<span class="nc" id="L195">        public boolean isAnalyzed() { return analyzed; }</span>
+<span class="nc" id="L196">        public void setAnalyzed(boolean analyzed) { this.analyzed = analyzed; }</span>
+
+<span class="nc" id="L198">        public String getError() { return error; }</span>
+<span class="nc" id="L199">        public void setError(String error) { this.error = error; }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

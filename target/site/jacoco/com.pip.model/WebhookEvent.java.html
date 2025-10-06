@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Payment Integration Platform</a> &gt; <a href="index.source.html" class="el_package">com.pip.model</a> &gt; <span class="el_source">WebhookEvent.java</span></div><h1>WebhookEvent.java</h1><pre class="source lang-java linenums">package com.pip.model;
+
+import jakarta.persistence.*;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Entidade que representa um evento de webhook individual a ser enviado
+ * 
+ * Diferente de Webhook (que é uma configuração), WebhookEvent representa
+ * cada notificação específica que precisa ser enviada
+ * 
+ * @author Luiz Gustavo Finotello
+ */
+@Entity
+@Table(name = &quot;webhook_event&quot;, indexes = {
+    @Index(name = &quot;idx_webhook_event_lojista&quot;, columnList = &quot;lojista_id&quot;),
+    @Index(name = &quot;idx_webhook_event_transacao&quot;, columnList = &quot;transacao_id&quot;),
+    @Index(name = &quot;idx_webhook_event_status&quot;, columnList = &quot;status&quot;),
+    @Index(name = &quot;idx_webhook_event_proxima_tentativa&quot;, columnList = &quot;proxima_tentativa&quot;)
+})
+public class WebhookEvent {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;lojista_id&quot;, nullable = false)
+    private Lojista lojista;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;transacao_id&quot;, nullable = false)
+    private Transacao transacao;
+
+    @Column(name = &quot;evento&quot;, nullable = false, length = 50)
+    private String evento;
+
+    @Column(name = &quot;url&quot;, nullable = false, length = 500)
+    private String url;
+
+    @Column(name = &quot;payload&quot;, nullable = false, columnDefinition = &quot;TEXT&quot;)
+    private String payload;
+
+    @Column(name = &quot;signature&quot;, length = 255)
+    private String signature;
+
+    @Column(name = &quot;status&quot;, nullable = false, length = 20)
+    private String status; // PENDING, SENDING, SUCCESS, FAILED, CANCELLED
+
+<span class="fc" id="L51">    @Column(name = &quot;tentativas&quot;, nullable = false)</span>
+<span class="fc" id="L52">    private Integer tentativas = 0;</span>
+
+<span class="fc" id="L54">    @Column(name = &quot;max_tentativas&quot;, nullable = false)</span>
+<span class="fc" id="L55">    private Integer maxTentativas = 5;</span>
+
+    @Column(name = &quot;http_status&quot;)
+    private Integer httpStatus;
+
+    @Column(name = &quot;response_body&quot;, columnDefinition = &quot;TEXT&quot;)
+    private String responseBody;
+
+    @Column(name = &quot;error_message&quot;, length = 500)
+    private String errorMessage;
+
+    @Column(name = &quot;proxima_tentativa&quot;)
+    private ZonedDateTime proximaTentativa;
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private ZonedDateTime createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    private ZonedDateTime updatedAt;
+
+    @Column(name = &quot;enviado_at&quot;)
+    private ZonedDateTime enviadoAt;
+
+    @Column(name = &quot;sucesso_at&quot;)
+    private ZonedDateTime sucessoAt;
+
+    // Construtores
+<span class="fc" id="L82">    public WebhookEvent() {</span>
+<span class="fc" id="L83">        this.createdAt = ZonedDateTime.now();</span>
+<span class="fc" id="L84">        this.status = &quot;PENDING&quot;;</span>
+<span class="fc" id="L85">        this.tentativas = 0;</span>
+<span class="fc" id="L86">        this.maxTentativas = 5;</span>
+<span class="fc" id="L87">    }</span>
+
+    public WebhookEvent(Lojista lojista, Transacao transacao, String evento, String url, String payload) {
+<span class="nc" id="L90">        this();</span>
+<span class="nc" id="L91">        this.lojista = lojista;</span>
+<span class="nc" id="L92">        this.transacao = transacao;</span>
+<span class="nc" id="L93">        this.evento = evento;</span>
+<span class="nc" id="L94">        this.url = url;</span>
+<span class="nc" id="L95">        this.payload = payload;</span>
+<span class="nc" id="L96">    }</span>
+
+    // Getters e Setters
+    public UUID getId() {
+<span class="fc" id="L100">        return id;</span>
+    }
+
+    public void setId(UUID id) {
+<span class="fc" id="L104">        this.id = id;</span>
+<span class="fc" id="L105">    }</span>
+
+    public Lojista getLojista() {
+<span class="nc" id="L108">        return lojista;</span>
+    }
+
+    public void setLojista(Lojista lojista) {
+<span class="fc" id="L112">        this.lojista = lojista;</span>
+<span class="fc" id="L113">    }</span>
+
+    public Transacao getTransacao() {
+<span class="nc" id="L116">        return transacao;</span>
+    }
+
+    public void setTransacao(Transacao transacao) {
+<span class="fc" id="L120">        this.transacao = transacao;</span>
+<span class="fc" id="L121">    }</span>
+
+    public String getEvento() {
+<span class="fc" id="L124">        return evento;</span>
+    }
+
+    public void setEvento(String evento) {
+<span class="fc" id="L128">        this.evento = evento;</span>
+<span class="fc" id="L129">    }</span>
+
+    public String getUrl() {
+<span class="fc" id="L132">        return url;</span>
+    }
+
+    public void setUrl(String url) {
+<span class="fc" id="L136">        this.url = url;</span>
+<span class="fc" id="L137">    }</span>
+
+    public String getPayload() {
+<span class="fc" id="L140">        return payload;</span>
+    }
+
+    public void setPayload(String payload) {
+<span class="fc" id="L144">        this.payload = payload;</span>
+<span class="fc" id="L145">    }</span>
+
+    public String getSignature() {
+<span class="fc" id="L148">        return signature;</span>
+    }
+
+    public void setSignature(String signature) {
+<span class="fc" id="L152">        this.signature = signature;</span>
+<span class="fc" id="L153">    }</span>
+
+    public String getStatus() {
+<span class="nc" id="L156">        return status;</span>
+    }
+
+    public void setStatus(String status) {
+<span class="fc" id="L160">        this.status = status;</span>
+<span class="fc" id="L161">    }</span>
+
+    public Integer getTentativas() {
+<span class="fc" id="L164">        return tentativas;</span>
+    }
+
+    public void setTentativas(Integer tentativas) {
+<span class="fc" id="L168">        this.tentativas = tentativas;</span>
+<span class="fc" id="L169">    }</span>
+
+    public Integer getMaxTentativas() {
+<span class="fc" id="L172">        return maxTentativas;</span>
+    }
+
+    public void setMaxTentativas(Integer maxTentativas) {
+<span class="fc" id="L176">        this.maxTentativas = maxTentativas;</span>
+<span class="fc" id="L177">    }</span>
+
+    public Integer getHttpStatus() {
+<span class="nc" id="L180">        return httpStatus;</span>
+    }
+
+    public void setHttpStatus(Integer httpStatus) {
+<span class="fc" id="L184">        this.httpStatus = httpStatus;</span>
+<span class="fc" id="L185">    }</span>
+
+    public String getResponseBody() {
+<span class="nc" id="L188">        return responseBody;</span>
+    }
+
+    public void setResponseBody(String responseBody) {
+<span class="fc" id="L192">        this.responseBody = responseBody;</span>
+<span class="fc" id="L193">    }</span>
+
+    public String getErrorMessage() {
+<span class="nc" id="L196">        return errorMessage;</span>
+    }
+
+    public void setErrorMessage(String errorMessage) {
+<span class="fc" id="L200">        this.errorMessage = errorMessage;</span>
+<span class="fc" id="L201">    }</span>
+
+    public ZonedDateTime getProximaTentativa() {
+<span class="nc" id="L204">        return proximaTentativa;</span>
+    }
+
+    public void setProximaTentativa(ZonedDateTime proximaTentativa) {
+<span class="nc" id="L208">        this.proximaTentativa = proximaTentativa;</span>
+<span class="nc" id="L209">    }</span>
+
+    public ZonedDateTime getCreatedAt() {
+<span class="nc" id="L212">        return createdAt;</span>
+    }
+
+    public void setCreatedAt(ZonedDateTime createdAt) {
+<span class="fc" id="L216">        this.createdAt = createdAt;</span>
+<span class="fc" id="L217">    }</span>
+
+    public ZonedDateTime getUpdatedAt() {
+<span class="nc" id="L220">        return updatedAt;</span>
+    }
+
+    public void setUpdatedAt(ZonedDateTime updatedAt) {
+<span class="fc" id="L224">        this.updatedAt = updatedAt;</span>
+<span class="fc" id="L225">    }</span>
+
+    public ZonedDateTime getEnviadoAt() {
+<span class="nc" id="L228">        return enviadoAt;</span>
+    }
+
+    public void setEnviadoAt(ZonedDateTime enviadoAt) {
+<span class="fc" id="L232">        this.enviadoAt = enviadoAt;</span>
+<span class="fc" id="L233">    }</span>
+
+    public ZonedDateTime getSucessoAt() {
+<span class="nc" id="L236">        return sucessoAt;</span>
+    }
+
+    public void setSucessoAt(ZonedDateTime sucessoAt) {
+<span class="fc" id="L240">        this.sucessoAt = sucessoAt;</span>
+<span class="fc" id="L241">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
