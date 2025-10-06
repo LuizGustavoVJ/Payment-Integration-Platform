@@ -65,7 +65,7 @@ class WebhookServiceTest {
         transacao.setValor(10000L);
         transacao.setMoeda("BRL");
         transacao.setParcelas(1);
-        transacao.setStatus(com.pip.model.TransactionStatus.AUTHORIZED);
+        transacao.setStatus("AUTHORIZED");
         transacao.setCreatedAt(ZonedDateTime.now());
     }
 
